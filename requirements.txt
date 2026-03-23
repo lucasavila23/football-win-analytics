@@ -1,0 +1,26 @@
+# --- Scraping ---
+soccerdata
+
+# --- Data manipulation ---
+pandas
+numpy
+unidecode
+
+# --- GCP (BigQuery + GCS) ---
+google-cloud-bigquery
+google-cloud-storage
+google-cloud-bigquery-storage
+pyarrow
+
+# --- dbt ---
+dbt-core
+dbt-bigquery
+
+# --- Supabase ---
+supabase
+
+# --- Environment ---
+python-dotenv
+
+# --- CLI ---
+argparse
