@@ -19,8 +19,8 @@ HISTORICAL_SEASONS = [str(y) for y in range(2014, 2024)]  # 2014 → 2023
 ALL_SEASONS = HISTORICAL_SEASONS + [CURRENT_SEASON]
 
 # --- GCP ---
-GCP_PROJECT_ID = "your-gcp-project-id"       # Fill in after GCP setup
-GCS_BUCKET_NAME = "football-analytics-raw"    # Fill in after GCP setup
+GCP_PROJECT_ID = "football-analytics-491123"       # Fill in after GCP setup
+GCS_BUCKET_NAME = "football-analytics-raw-491123"    # Fill in after GCP setup
 BIGQUERY_DATASET_RAW = "raw"
 BIGQUERY_DATASET_STAGING = "staging"
 BIGQUERY_DATASET_INTERMEDIATE = "intermediate"
