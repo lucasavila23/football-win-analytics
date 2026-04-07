@@ -469,7 +469,7 @@ def test_club_elo():
             "key":     f"elo_{lk}",
             "label":   f"ClubElo/{team}",
             "timeout": TIMEOUTS["club_elo"],
-            "fn":      (lambda t: lambda: sd.ClubElo().read_by_club(t).reset_index())(team),
+            "fn":      (lambda t: lambda: sd.ClubElo().read_team_history(t).reset_index())(team),
         }
         for lk, team in test_teams.items()
     ]
@@ -494,10 +494,10 @@ def test_club_elo():
         check_volume(elo_df, "elo rows", min_rows=10)
         print_dataframe_info(elo_df, "elo")
 
-        if "date" in elo_df.columns:
+        if "from" in elo_df.columns:
             elo_2023 = elo_df[
-                (elo_df["date"] >= "2022-08-01") &
-                (elo_df["date"] <= "2023-06-30")
+                (elo_df["from"] >= "2022-08-01") &
+                (elo_df["from"] <= "2023-06-30")
             ]
             if not elo_2023.empty:
                 latest = elo_2023.iloc[-1]
@@ -625,17 +625,18 @@ if __name__ == "__main__":
     print("  SOCCERDATA FULL SOURCE VALIDATION — PARALLEL")
     print(f"  Season   : {SEASON}")
     print(f"  Leagues  : All 5 in parallel ({MAX_WORKERS} workers)")
-    print(f"  Sources  : Understat, ESPN, FBref, Club Elo")
+    print(f"  Sources  : Understat, ESPN, Club Elo (FBref dropped — Cloudflare)")
     print(f"  Started  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*65)
 
     # Comment this out on reruns to use cached Understat data
-    clear_cache()
-
+    # clear_cache()   # commented out — using cached Understat + ESPN data
     understat_results = test_understat()
     espn_results      = test_espn()
-    fbref_results     = test_fbref()
+    fbref_results     = {}   # dropped — Cloudflare blocked
     elo_results       = test_club_elo()
+
+    print_summary(understat_results, espn_results, fbref_results, elo_results)
 
     test_cross_join(understat_results, espn_results)
     print_summary(understat_results, espn_results, fbref_results, elo_results)
