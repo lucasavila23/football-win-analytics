@@ -1,5 +1,6 @@
 # --- Scraping ---
 soccerdata
+statsbombpy
 
 # --- Data manipulation ---
 pandas
