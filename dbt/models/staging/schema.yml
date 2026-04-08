@@ -1,0 +1,83 @@
+version: 2
+
+models:
+  - name: stg_matches
+    description: >
+      Cleaned and typed Understat match data. One row per match per league
+      per season. Includes derived columns: result, xg_diff, score_diff.
+    columns:
+      - name: match_date
+        description: Match date (DATE type).
+        data_tests:
+          - not_null
+      - name: home_team
+        description: Normalised home team name.
+        data_tests:
+          - not_null
+      - name: away_team
+        description: Normalised away team name.
+        data_tests:
+          - not_null
+      - name: league
+        description: League key (e.g. 'la_liga').
+        data_tests:
+          - not_null
+      - name: season
+        description: Season start year as string.
+        data_tests:
+          - not_null
+      - name: result
+        description: Match result from home team perspective.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['home_win', 'away_win', 'draw']
+
+  - name: stg_player_stats
+    description: >
+      Cleaned and typed Understat player stats. One row per player per
+      match appearance per league per season.
+    columns:
+      - name: player_name
+        description: Player name (normalised from Understat).
+        data_tests:
+          - not_null
+      - name: team
+        description: Normalised team name.
+        data_tests:
+          - not_null
+      - name: league
+        description: League key.
+        data_tests:
+          - not_null
+      - name: season
+        description: Season start year as string.
+        data_tests:
+          - not_null
+
+  - name: stg_lineups
+    description: >
+      Cleaned and typed ESPN lineup data. One row per player per match
+      appearance per league per season. All nullable integers coalesced to 0.
+    columns:
+      - name: player_name
+        description: Player name (normalised from ESPN).
+        data_tests:
+          - not_null
+      - name: team
+        description: Normalised team name.
+        data_tests:
+          - not_null
+      - name: league
+        description: League key.
+        data_tests:
+          - not_null
+      - name: season
+        description: Season start year as string.
+        data_tests:
+          - not_null
+      - name: is_home
+        description: True if player's team was the home side.
+        data_tests:
+          - not_null
