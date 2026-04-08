@@ -26,6 +26,8 @@
 # the Understat/ESPN canonical.
 # =============================================================================
 
+import time
+
 from unidecode import unidecode
 
 # -----------------------------------------------------------------------------
@@ -167,3 +169,79 @@ def normalize_name(name: str) -> str:
     normalised = _CORRECTIONS.get(normalised, normalised)
 
     return normalised
+
+
+# =============================================================================
+# PipelineTimer
+# =============================================================================
+# Lightweight wall-clock timer used by main.py to record per-step latency.
+#
+# Usage pattern in main.py:
+#   timer = PipelineTimer()
+#   timer.start("understat_matches")
+#   ... do work ...
+#   timer.stop("understat_matches")
+#   timer.summary()  # prints table to stdout
+#   timer.to_dict()  # returns dict for JSON serialisation
+#
+# summary() always prints to stdout (not logger) so it appears in
+# GitHub Actions logs when we wire up the pipeline.yml.
+# =============================================================================
+
+
+class PipelineTimer:
+    """
+    Named wall-clock timer for pipeline steps.
+
+    Records start/stop pairs per label. Supports formatted table output
+    (summary()) and dict serialisation (to_dict()) for saving timing JSON.
+    """
+
+    def __init__(self) -> None:
+        self._starts: dict[str, float] = {}
+        self._timings: dict[str, float] = {}
+
+    def start(self, label: str) -> None:
+        """Start (or restart) the timer for the given label."""
+        self._starts[label] = time.time()
+
+    def stop(self, label: str) -> float:
+        """
+        Stop the timer for the given label and record elapsed seconds.
+
+        Returns:
+            Elapsed seconds as float.
+
+        Raises:
+            KeyError: if start() was never called for this label.
+        """
+        if label not in self._starts:
+            raise KeyError(f"PipelineTimer: '{label}' was never started")
+        elapsed = time.time() - self._starts.pop(label)
+        self._timings[label] = elapsed
+        return elapsed
+
+    def summary(self) -> None:
+        """Print a formatted timing table to stdout."""
+        if not self._timings:
+            print("\n  PIPELINE TIMING SUMMARY")
+            print("  ========================")
+            print("  (no timings recorded)")
+            return
+
+        col_width = max(len(label) for label in self._timings)
+        col_width = max(col_width, 45)
+        total = sum(self._timings.values())
+        sep = "  " + "─" * (col_width + 12)
+
+        print()
+        print("  PIPELINE TIMING SUMMARY")
+        print("  " + "=" * (col_width + 12))
+        for label, seconds in self._timings.items():
+            print(f"  {label:<{col_width}}  {seconds:.1f}s")
+        print(sep)
+        print(f"  {'TOTAL':<{col_width}}  {total:.1f}s")
+
+    def to_dict(self) -> dict[str, float]:
+        """Return all recorded timings as a plain dict."""
+        return dict(self._timings)

@@ -11,7 +11,11 @@
 # Bundesliga has the most cases (11 of 18 teams mismatch — 38.9% raw rate).
 # =============================================================================
 
-from pipeline.utils import normalize_name
+import io
+import sys
+import time
+
+from pipeline.utils import PipelineTimer, normalize_name
 
 
 def _assert_same(name_a: str, name_b: str, note: str = ""):
@@ -265,6 +269,127 @@ def test_idempotency():
     print(f"   PASS — {len(names)} names are idempotent")
 
 
+# =============================================================================
+# PipelineTimer
+# =============================================================================
+
+def test_pipeline_timer_start_stop_records_elapsed():
+    """start/stop records a positive elapsed time for a label."""
+    print("\nTEST — PipelineTimer start/stop records elapsed time")
+
+    timer = PipelineTimer()
+    timer.start("step_a")
+    time.sleep(0.05)          # 50 ms — well within any CI runner tolerance
+    elapsed = timer.stop("step_a")
+
+    assert elapsed >= 0.04, f"Elapsed too short: {elapsed:.4f}s"
+    assert elapsed < 5.0,   f"Elapsed suspiciously long: {elapsed:.4f}s"
+
+    timings = timer.to_dict()
+    assert "step_a" in timings, "step_a not found in to_dict() output"
+    assert abs(timings["step_a"] - elapsed) < 0.001, "to_dict value differs from stop() return"
+
+    print(f"   PASS — elapsed={elapsed:.3f}s, to_dict key present")
+
+
+def test_pipeline_timer_multiple_labels():
+    """Multiple independent labels are all recorded correctly."""
+    print("\nTEST — PipelineTimer multiple labels")
+
+    timer = PipelineTimer()
+    for label in ("alpha", "beta", "gamma"):
+        timer.start(label)
+        time.sleep(0.01)
+        timer.stop(label)
+
+    d = timer.to_dict()
+    assert set(d.keys()) == {"alpha", "beta", "gamma"}, f"Unexpected keys: {d.keys()}"
+    for label, secs in d.items():
+        assert secs >= 0.005, f"'{label}' elapsed too short: {secs:.4f}s"
+
+    print(f"   PASS — 3 labels recorded: {list(d.keys())}")
+
+
+def test_pipeline_timer_stop_without_start_raises():
+    """Stopping a label that was never started raises KeyError."""
+    print("\nTEST — PipelineTimer stop without start raises KeyError")
+
+    timer = PipelineTimer()
+    try:
+        timer.stop("never_started")
+        assert False, "Expected KeyError was not raised"
+    except KeyError:
+        pass
+
+    print("   PASS — KeyError raised as expected")
+
+
+def test_pipeline_timer_summary_prints_without_error():
+    """summary() writes output to stdout without raising."""
+    print("\nTEST — PipelineTimer summary() prints without error")
+
+    timer = PipelineTimer()
+    timer.start("s1")
+    time.sleep(0.01)
+    timer.stop("s1")
+    timer.start("s2")
+    time.sleep(0.01)
+    timer.stop("s2")
+
+    # Capture stdout to verify it contains expected strings
+    captured = io.StringIO()
+    sys.stdout = captured
+    try:
+        timer.summary()
+    finally:
+        sys.stdout = sys.__stdout__
+
+    output = captured.getvalue()
+    assert "PIPELINE TIMING SUMMARY" in output, "Header missing from summary output"
+    assert "TOTAL" in output, "'TOTAL' line missing from summary output"
+    assert "s1" in output, "'s1' label missing from summary output"
+    assert "s2" in output, "'s2' label missing from summary output"
+
+    print("   PASS — summary() printed correctly")
+
+
+def test_pipeline_timer_summary_empty():
+    """summary() on a fresh timer prints a no-timings message without error."""
+    print("\nTEST — PipelineTimer summary() with no timings")
+
+    timer = PipelineTimer()
+    captured = io.StringIO()
+    sys.stdout = captured
+    try:
+        timer.summary()
+    finally:
+        sys.stdout = sys.__stdout__
+
+    output = captured.getvalue()
+    assert "PIPELINE TIMING SUMMARY" in output
+    assert "no timings" in output.lower()
+
+    print("   PASS — empty summary printed cleanly")
+
+
+def test_pipeline_timer_to_dict_expected_keys():
+    """to_dict() returns exactly the labels that were stopped."""
+    print("\nTEST — PipelineTimer to_dict() returns expected keys")
+
+    timer = PipelineTimer()
+    labels = ["understat_matches", "understat_player_stats", "espn_lineups", "bq_load"]
+    for lbl in labels:
+        timer.start(lbl)
+        timer.stop(lbl)
+
+    d = timer.to_dict()
+    assert set(d.keys()) == set(labels), f"Key mismatch: {set(d.keys())} != {set(labels)}"
+    for lbl in labels:
+        assert isinstance(d[lbl], float), f"'{lbl}' value is not float: {type(d[lbl])}"
+
+    print(f"   PASS — to_dict() returned {len(labels)} float-valued keys")
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("  normalize_name() — SMOKE TESTS")
@@ -282,6 +407,17 @@ if __name__ == "__main__":
     test_ligue_1_prefix_and_suffix()
     test_ligue_1_psg_hyphen()
     test_idempotency()
+
+    print("\n" + "=" * 60)
+    print("  PipelineTimer — SMOKE TESTS")
+    print("=" * 60)
+
+    test_pipeline_timer_start_stop_records_elapsed()
+    test_pipeline_timer_multiple_labels()
+    test_pipeline_timer_stop_without_start_raises()
+    test_pipeline_timer_summary_prints_without_error()
+    test_pipeline_timer_summary_empty()
+    test_pipeline_timer_to_dict_expected_keys()
 
     print("\n" + "=" * 60)
     print("  ALL TESTS PASSED")
