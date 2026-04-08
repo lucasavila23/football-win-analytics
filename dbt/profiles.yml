@@ -1,0 +1,12 @@
+football_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT_ID', 'football-analytics-491123') }}"
+      dataset: staging
+      threads: 1
+      timeout_seconds: 300
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
+      location: EU
