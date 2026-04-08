@@ -21,5 +21,8 @@ dbt/.user.yml
 .ipynb_checkpoints/
 *.ipynb
 
+# Pipeline timing diagnostics — local only, not production code
+docs/pipeline_timings/
+
 # macOS
 .DS_Store
