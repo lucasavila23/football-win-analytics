@@ -91,6 +91,25 @@ def _normalise_lineups(raw: pd.DataFrame, league_key: str, season: str) -> pd.Da
     if "team" in df.columns:
         df["team"] = df["team"].apply(normalize_name)
 
+    # Cast nullable integer columns to pd.Int64Dtype() so pyarrow can
+    # serialise them to Parquet without "Expected bytes, got int" errors.
+    # These columns arrive from ESPN as object dtype with mixed int/str/None.
+    # pd.to_numeric(errors='coerce') converts non-numeric strings (e.g. 'start')
+    # to NaN before the Int64 cast, so those entries become <NA>.
+    _nullable_int_cols = [
+        "formation_place", "sub_in", "sub_out",
+        "shots_on_target", "fouls_committed", "fouls_suffered",
+        "offsides", "saves", "goals_conceded", "shots_faced", "goal_assists",
+    ]
+    for col in _nullable_int_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype(pd.Int64Dtype())
+
+    # Cast boolean columns
+    for bool_col in ("is_home",):
+        if bool_col in df.columns:
+            df[bool_col] = df[bool_col].astype("boolean")
+
     # Add pipeline identity columns
     df["league"] = league_key
     df["season"] = season

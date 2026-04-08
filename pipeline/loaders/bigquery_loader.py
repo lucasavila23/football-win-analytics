@@ -155,28 +155,85 @@ def get_row_count(dataset: str, table_name: str) -> int:
     return count
 
 
+def _rows_exist(bq_table_id: str, league: str, season: str) -> bool:
+    """
+    Return True if any rows exist in bq_table_id for the given league+season.
+
+    Uses a partition-filtered COUNT — costs near-zero bytes.
+    Returns False if the table does not exist yet.
+    """
+    client = _get_client()
+    sql = (
+        f"SELECT COUNT(1) AS n FROM `{bq_table_id}` "
+        f"WHERE league = '{league}' AND season = '{season}'"
+    )
+    dry_config = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)
+    try:
+        dry_job = client.query(sql, job_config=dry_config)
+        estimated_gb = dry_job.total_bytes_processed / 1e9
+        logger.info(
+            f"Existence check dry-run ({bq_table_id} "
+            f"league={league} season={season}): {estimated_gb:.4f} GB"
+        )
+        job = client.query(sql)
+        rows = list(job.result())
+        return int(rows[0]["n"]) > 0
+    except Exception:
+        # Table does not exist yet → treat as empty
+        return False
+
+
+def _delete_league_season(bq_table_id: str, league: str, season: str) -> None:
+    """
+    Delete all rows for the given league+season from bq_table_id.
+
+    Used before a re-load when overwrite=True, to keep the table idempotent.
+    """
+    client = _get_client()
+    sql = (
+        f"DELETE FROM `{bq_table_id}` "
+        f"WHERE league = '{league}' AND season = '{season}'"
+    )
+    logger.info(
+        f"Deleting existing rows from {bq_table_id} "
+        f"(league={league}, season={season})"
+    )
+    job = client.query(sql)
+    job.result()
+    logger.info("Delete completed")
+
+
 def load_parquet_from_gcs(
     league: str,
     source: str,
     season: str,
     table: str,
     mode: str = "WRITE_APPEND",
-) -> bigquery.LoadJob:
+    overwrite: bool = False,
+) -> bigquery.LoadJob | None:
     """
     Load a Parquet file from GCS bronze into the BigQuery raw dataset.
 
     GCS source path: bronze/{league}/{source}/{season}/{table}.parquet
     BigQuery target: raw.{source}_{table}
 
+    Idempotency (mirrors GCS loader overwrite=False behaviour):
+    - If overwrite=False (default) and rows already exist for this
+      league+season, the load is skipped and None is returned.
+    - If overwrite=True and rows already exist, they are deleted first,
+      then the file is loaded fresh.
+
     Args:
-        league:  League key (e.g. 'la_liga')
-        source:  Source name (e.g. 'understat', 'espn', 'statsbomb')
-        season:  Season year string (e.g. '2024')
-        table:   Table descriptor (e.g. 'matches', 'events', 'match_summary')
-        mode:    'WRITE_APPEND' (default, incremental) or 'WRITE_TRUNCATE' (backfill)
+        league:    League key (e.g. 'la_liga')
+        source:    Source name (e.g. 'understat', 'espn', 'statsbomb')
+        season:    Season year string (e.g. '2024')
+        table:     Table descriptor (e.g. 'matches', 'events', 'match_summary')
+        mode:      'WRITE_APPEND' (default) or 'WRITE_TRUNCATE' (full table overwrite)
+        overwrite: If False (default), skip if rows already exist for league+season.
+                   If True, delete existing rows then reload.
 
     Returns:
-        Completed BigQuery LoadJob result.
+        Completed BigQuery LoadJob result, or None if skipped.
 
     Raises:
         ValueError: if mode is not 'WRITE_APPEND' or 'WRITE_TRUNCATE'.
@@ -186,6 +243,18 @@ def load_parquet_from_gcs(
 
     gcs_uri = f"gs://{GCS_BUCKET_NAME}/bronze/{league}/{source}/{season}/{table}.parquet"
     bq_table_id = f"{GCP_PROJECT_ID}.{BIGQUERY_DATASET_RAW}.{source}_{table}"
+
+    # Idempotency check — mirrors GCS overwrite=False behaviour
+    if mode == "WRITE_APPEND":
+        exists = _rows_exist(bq_table_id, league, season)
+        if exists and not overwrite:
+            logger.info(
+                f"Skipping BQ load — rows already exist: "
+                f"{bq_table_id} (league={league}, season={season})"
+            )
+            return None
+        if exists and overwrite:
+            _delete_league_season(bq_table_id, league, season)
 
     write_disposition = (
         bigquery.WriteDisposition.WRITE_TRUNCATE
@@ -240,6 +309,7 @@ def load_multiple(uploads: list[dict]) -> list:
                 season=item["season"],
                 table=item["table"],
                 mode=item.get("mode", "WRITE_APPEND"),
+                overwrite=item.get("overwrite", False),
             )
             results.append(result)
         except Exception as e:
