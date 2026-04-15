@@ -29,6 +29,7 @@ from dotenv import load_dotenv
 from statsbombpy import sb
 
 from pipeline.config import STATSBOMB_COMPETITION_META, STATSBOMB_SEASON_MAP
+from pipeline.utils import normalize_name
 
 load_dotenv()
 
@@ -259,17 +260,9 @@ def scrape_match_summary(league: str, season: str) -> pd.DataFrame | None:
     summary = pd.DataFrame(rows)
 
     # Apply normalize_name so this DataFrame is join-ready against Understat
-    # Import here to avoid circular deps; utils.py will be built separately
-    try:
-        from pipeline.utils import normalize_name
-        summary["home_team"] = summary["home_team"].apply(normalize_name)
-        summary["away_team"] = summary["away_team"].apply(normalize_name)
-        logger.info("Applied normalize_name() to home_team and away_team")
-    except (ImportError, AttributeError):
-        logger.warning(
-            "normalize_name() not yet implemented in pipeline/utils.py — "
-            "home_team and away_team are raw StatsBomb names"
-        )
+    summary["home_team"] = summary["home_team"].apply(normalize_name)
+    summary["away_team"] = summary["away_team"].apply(normalize_name)
+    logger.info("Applied normalize_name() to home_team and away_team")
 
     logger.info(
         f"Built match_summary: {len(summary)} matches for {league}/{season}"
