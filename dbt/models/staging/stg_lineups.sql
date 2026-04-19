@@ -17,7 +17,6 @@
 --   ESPN scraper before loading to GCS. COALESCE to 0 here means "not
 --   substituted" — use sub_in > 0 to identify actual substitution events.
 --
--- DEVELOPMENT: LIMIT 1000 is active. Remove for production runs.
 -- =============================================================================
 
 {{ config(materialized='table') }}
@@ -56,4 +55,3 @@ SELECT
 
 FROM {{ source('raw', 'espn_lineups') }}
 WHERE season = '{{ var("target_season", "2023") }}'
-LIMIT 1000
