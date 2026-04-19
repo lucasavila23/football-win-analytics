@@ -7,7 +7,6 @@
 -- The "canonical" team pair uses alphabetical ordering of team names to avoid
 -- double-counting (team_a < team_b always).
 --
--- DEVELOPMENT: LIMIT 1000 active. Remove for production runs.
 -- =============================================================================
 
 {{ config(materialized='table') }}
@@ -48,4 +47,3 @@ GROUP BY
     league,
     season
 
-LIMIT 1000

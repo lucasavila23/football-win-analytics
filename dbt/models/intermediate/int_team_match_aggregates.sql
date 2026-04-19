@@ -14,7 +14,6 @@
 -- cannot be joined here at match granularity. Seasonal player aggregations
 -- are joined at mart level instead.
 --
--- DEVELOPMENT: LIMIT 2000 active. Remove for production runs.
 -- =============================================================================
 
 {{ config(materialized='table') }}
@@ -99,4 +98,3 @@ SELECT
 
 FROM {{ ref('stg_matches') }}
 
-LIMIT 2000

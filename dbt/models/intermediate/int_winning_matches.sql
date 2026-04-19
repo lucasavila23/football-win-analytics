@@ -7,7 +7,6 @@
 -- This is the foundation for mart_winning_profiles — all aggregations about
 -- "what do winning teams look like" flow through here.
 --
--- DEVELOPMENT: LIMIT 1000 active. Remove for production runs.
 -- =============================================================================
 
 {{ config(materialized='table') }}
@@ -42,4 +41,3 @@ FROM {{ ref('int_team_match_aggregates') }}
 WHERE match_result = 'win'
   AND season = '{{ var("target_season", "2023") }}'
 
-LIMIT 1000
