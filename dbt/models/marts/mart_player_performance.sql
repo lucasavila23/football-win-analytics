@@ -50,6 +50,5 @@ SELECT
     APPROX_TOP_COUNT(position, 1)[OFFSET(0)].value  AS primary_position
 
 FROM {{ ref('stg_player_stats') }}
-WHERE season = '{{ var("target_season", "2023") }}'
 GROUP BY player_name, team, league, season
 ORDER BY league, season, total_xg DESC

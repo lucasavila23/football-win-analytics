@@ -39,5 +39,4 @@ SELECT
 
 FROM {{ ref('int_team_match_aggregates') }}
 WHERE match_result = 'win'
-  AND season = '{{ var("target_season", "2023") }}'
 

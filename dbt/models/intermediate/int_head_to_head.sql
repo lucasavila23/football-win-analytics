@@ -40,7 +40,6 @@ SELECT
     ROUND(AVG(CASE WHEN team < opponent THEN xg_against ELSE xg_for  END), 3) AS team_b_avg_xg
 
 FROM {{ ref('int_team_match_aggregates') }}
-WHERE season = '{{ var("target_season", "2023") }}'
 GROUP BY
     CASE WHEN team < opponent THEN team     ELSE opponent END,
     CASE WHEN team < opponent THEN opponent ELSE team     END,

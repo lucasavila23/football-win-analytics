@@ -266,63 +266,64 @@ football-analytics/
 
 ---
 
-## 📋 CURRENT STATUS (as of Dev Log #6 + post-session update, 19th April 2026)
+## 📋 CURRENT STATUS (as of Dev Log #7, 19th April 2026)
 
 ### Complete ✅
 - GCS Loader (`pipeline/loaders/gcs_loader.py`) — 6 smoke tests passing
 - BigQuery Loader (`pipeline/loaders/bigquery_loader.py`) — dry-run safety, batch loading,
-  overwrite=False idempotency (skip if league+season already exists). 5/5 tests passing.
+  overwrite=False idempotency. 5/5 tests passing.
 - GCP infrastructure (project, bucket, BigQuery datasets, service account)
-- GitHub repo scaffold and folder structure
-- `pipeline/config.py` and `main.py` — wired with 5-step pipeline + PipelineTimer
-- Soccerdata source validation across all 5 leagues (2023 season); join validation complete
-  — all 5 leagues 99–100% date overlap, known gaps documented
+- `pipeline/config.py` and `main.py` — 5-step pipeline + PipelineTimer; ESPN and
+  Understat player_stats failures treated as warnings (non-fatal) for backfill resilience
 - `pipeline/utils.py` — `normalize_name()` (all 5 leagues) + `PipelineTimer`. 12/12 tests passing.
 - `pipeline/scrapers/statsbomb_scraper.py` — StatsBomb Open Data via statsbombpy.
   FBref replaced. `STATSBOMB_SEASON_MAP` in `config.py`. Progressive carries computed
   from coordinates. Champions League excluded. 4/4 tests passing.
-- `pipeline/scrapers/understat_scraper.py` — parallel league fetching, 600s timeout. 7/7 tests passing.
-- `pipeline/scrapers/espn_scraper.py` — parallel league fetching, 600s timeout;
-  nullable int cast fixed (`sub_in`/`sub_out` via `pd.to_numeric(errors='coerce')`). 6/6 tests passing.
-- End-to-end pipeline run validated: la_liga/2023 — 380 matches, 17,136 lineup rows
-- dbt staging layer: `stg_matches`, `stg_player_stats`, `stg_lineups` — 16/16 tests pass
-- dbt config: `dbt_project.yml`, `profiles.yml` (EU, service-account), `generate_schema_name`
-  macro (prevents `staging_staging` double-prefix)
-- dbt intermediate layer: `int_team_match_aggregates` (UNION ALL unpivot, 760 rows),
-  `int_winning_matches` (273 rows), `int_head_to_head` (190 rows)
+- `pipeline/scrapers/understat_scraper.py` — 7/7 tests passing.
+- `pipeline/scrapers/espn_scraper.py` — 6/6 tests passing.
+- Full historical backfill complete (Dev Log #7):
+  - `raw.understat_matches`: 18,085 rows — 5/5 leagues × 10 seasons (2014–2023)
+  - `raw.understat_player_stats`: 521,148 rows — 5/5 leagues × 10 seasons
+  - `raw.espn_lineups`: 74,391 rows — 2023 only (ESPN 500 errors on pre-2016/2017 IDs,
+    known limitation, not a blocker — Understat covers the full 10 seasons)
+- dbt staging layer: `stg_matches`, `stg_player_stats`, `stg_lineups`
+- dbt intermediate layer: `int_team_match_aggregates`, `int_winning_matches`, `int_head_to_head`
 - dbt mart layer: `mart_league_standings`, `mart_winning_profiles`, `mart_player_performance`,
-  `mart_tactical_analysis`, `mart_team_comparison`, `mart_head_to_head` — all 20-row La Liga tables
+  `mart_tactical_analysis`, `mart_team_comparison`, `mart_head_to_head`
 - dbt macros: `calculate_win_rate` (SAFE_DIVIDE wrapper)
 - dbt singular tests: `assert_no_negative_xg`, `assert_match_has_two_teams`
-- Full dbt DAG: PASS=12 models, PASS=18 tests (0 failures, La Liga 2023)
-- Dev Log #6 written to `docs/DEV_LOG.md`
-- Exploratory analysis run against `mart_winning_profiles` — strongest signals: xG creation
-  (1.87 vs 1.14 in losses) and clinical finishing (1.22 vs 0.51 goals per xG).
-  Note: sample_size = 2 (La Liga only), insufficient for conclusions.
+- Full dbt DAG: PASS=12 models, PASS=18 tests
+- GitHub Actions `pipeline.yml` — `workflow_dispatch` + PR `dbt test` only (no scheduled cron)
+- Supabase sync script built (`pipeline/loaders/supabase_loader.py`) and DDL written
+  (`docs/supabase_schema.sql`). Supabase project not yet created.
+- `champions_league` removed from `LEAGUES` in `config.py` (Understat/ESPN don't cover UCL)
+- LIMIT guards removed from all dbt models
 
-### Known gaps before full analysis
-- Progressive carries from StatsBomb not yet flowing into `mart_winning_profiles` SQL
-- BigQuery currently holds only La Liga 2023 (minimal test run). Full backfill needed for
-  all leagues/seasons before analysis queries are meaningful.
-- `feature/understat-scraper` and `feature/espn-scraper` PRs still need merging → main
+### dbt models must be re-run without season filter
+All dbt models currently filter `WHERE season = '{{ var("target_season", "2023") }}'`.
+Before running analysis, remove this filter so all 10 seasons flow into the marts.
 
-### GitHub Actions scope decision (final)
-Soccerdata sources don't reliably provide current-season data → scheduled ingestion not viable.
-`pipeline.yml` will have **two triggers only:**
-1. `workflow_dispatch` — manual full backfill / run
-2. `pull_request` — runs `dbt test` on every PR to catch broken models before merge
-No cron/schedule trigger. This still demonstrates proper CI/CD for the submission.
+### Known limitations (documented, not blockers)
+- ESPN historical data pre-2016/2017 returns 500 errors — unfixable at source
+- StatsBomb NOT loaded into BigQuery — decision: StatsBomb open data only covers select
+  seasons per league (La Liga 2014–2020, PL 2015 only, Bundesliga 2015+2023, Serie A 2015,
+  Ligue 1 2015+2021+2022). Adding progressive carries would produce ~70% NULL rows in the
+  mart. Understat signals (xG, PPDA, deep completions, np_xg) are sufficient.
+- Previous exploratory analysis (Dev Log #6) was on sample_size = 2 — needs re-running
+
+### GitHub Actions scope (final)
+No cron trigger — soccerdata sources don't reliably provide current-season data.
+Two triggers only: `workflow_dispatch` (manual run) + `pull_request` (dbt test).
 
 ### Next to build 🔨
-1. Add progressive carries to `mart_winning_profiles` (StatsBomb → mart gap)
-2. GitHub Actions `pipeline.yml` — `workflow_dispatch` + PR `dbt test` only (branch: `feature/github-actions`)
-3. Supabase project setup and mart → Supabase sync
-4. Full end-to-end pipeline run for all leagues/seasons (remove `LIMIT` guards first)
-5. Re-run 6 analysis queries from `notebooks/analysis/winning_profiles_queries.py` once full data is in
+1. Remove `target_season` filter from all dbt models → re-run with all 10 seasons
+2. Re-run 6 analysis queries from `notebooks/analysis/winning_profiles_queries.py`
+3. Interpret findings and decide what the dashboard needs to show
+4. Supabase project setup and mart → Supabase sync
+5. Lovable frontend
 
 ### Blockers 🚧
-- FBref — replaced by StatsBomb Open Data via `statsbombpy`. Do not attempt
-  to scrape FBref. `fbref_scraper.py` stub exists but is unused.
+- FBref — replaced by StatsBomb Open Data. Do not attempt to scrape FBref.
 - FotMob via soccerdata — does not work, do not attempt.
 - Club Elo: verify correct API method name before building scraper
 

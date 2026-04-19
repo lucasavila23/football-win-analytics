@@ -52,4 +52,3 @@ SELECT
     CAST(position_id          AS INT64)      AS position_id
 
 FROM {{ source('raw', 'understat_player_stats') }}
-WHERE season = '{{ var("target_season", "2023") }}'

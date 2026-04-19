@@ -50,6 +50,5 @@ SELECT
     )                                                      AS win_rate
 
 FROM {{ ref('int_team_match_aggregates') }}
-WHERE season = '{{ var("target_season", "2023") }}'
 GROUP BY team, league, season
 ORDER BY league, season, avg_ppda ASC

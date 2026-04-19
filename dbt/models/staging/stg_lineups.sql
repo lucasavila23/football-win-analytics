@@ -54,4 +54,3 @@ SELECT
     COALESCE(CAST(goal_assists     AS INT64), 0) AS goal_assists
 
 FROM {{ source('raw', 'espn_lineups') }}
-WHERE season = '{{ var("target_season", "2023") }}'
