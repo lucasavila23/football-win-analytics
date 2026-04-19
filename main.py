@@ -6,6 +6,7 @@
 #   python main.py --seasons 2024                         # Current season, all leagues
 #   python main.py --seasons 2014 2015 --leagues la_liga  # Backfill specific
 #   python main.py --backfill                             # Full historical load
+#   python main.py --seasons 2023 --sync-supabase         # Ingest + sync marts to Supabase
 #
 # Execution order per (season, league) — never deviate:
 #   1. Fetch Understat matches   → time it
@@ -16,6 +17,7 @@
 #   6. Load all three into BQ    → time each table
 #   7. Print PipelineTimer summary
 #   8. Save timing JSON → docs/pipeline_timings/
+#   9. (optional) Sync mart tables → Supabase   [--sync-supabase flag]
 #
 # Rules:
 #   - overwrite=False on all GCS uploads — reruns skip existing files
@@ -37,6 +39,7 @@ from dotenv import load_dotenv
 from pipeline.config import CURRENT_SEASON, HISTORICAL_SEASONS, LEAGUES
 from pipeline.loaders.bigquery_loader import load_parquet_from_gcs
 from pipeline.loaders.gcs_loader import upload_multiple
+from pipeline.loaders.supabase_loader import sync_season_to_supabase
 from pipeline.scrapers.espn_scraper import scrape_espn_league_season
 from pipeline.scrapers.understat_scraper import scrape_understat_league_season
 from pipeline.utils import PipelineTimer
@@ -226,6 +229,10 @@ def main() -> None:
         "--backfill", action="store_true",
         help="Run full historical backfill (2014 → 2023)",
     )
+    parser.add_argument(
+        "--sync-supabase", action="store_true",
+        help="After ingestion, sync all mart tables to Supabase (requires SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY in .env)",
+    )
     args = parser.parse_args()
 
     seasons = HISTORICAL_SEASONS if args.backfill else (args.seasons or [CURRENT_SEASON])
@@ -257,6 +264,18 @@ def main() -> None:
 
     timer.stop("pipeline_total")
     timer.summary()
+
+    if args.sync_supabase:
+        for season in seasons:
+            logger.info(f"[Supabase sync] season={season}")
+            timer.start(f"supabase_sync / {season}")
+            try:
+                sync_season_to_supabase(season)
+            except Exception as exc:
+                logger.error(f"Supabase sync failed for season={season}: {exc}")
+                sys.exit(1)
+            timer.stop(f"supabase_sync / {season}")
+        timer.summary()
 
 
 if __name__ == "__main__":
