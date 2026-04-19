@@ -142,39 +142,44 @@ def _run_league_season(league: str, season: str, timer: PipelineTimer) -> bool:
     # ──────────────────────────────────────────────────────────────
     logger.info(f"[3/5] ESPN lineups fetch: {league}/{season}")
     timer.start(f"espn / {league} / {season} / lineups")
+    espn_ok = True
     try:
         lineups_df = scrape_espn_league_season(league, season)
     except Exception as exc:
-        logger.error(f"ESPN lineups fetch failed ({league}/{season}): {exc}")
-        timer.stop(f"espn / {league} / {season} / lineups")
-        return False
+        logger.warning(f"ESPN lineups fetch failed ({league}/{season}): {exc} — skipping ESPN for this season")
+        lineups_df = None
+        espn_ok = False
     timer.stop(f"espn / {league} / {season} / lineups")
 
     if lineups_df is None or lineups_df.empty:
-        logger.error(f"ESPN lineups returned empty for {league}/{season}")
-        return False
+        if espn_ok:
+            logger.warning(f"ESPN lineups returned empty for {league}/{season} — skipping ESPN steps")
+        espn_ok = False
 
     # ──────────────────────────────────────────────────────────────
-    # Step 4 — Upload ESPN lineups to GCS
+    # Step 4 — Upload ESPN lineups to GCS (skipped if ESPN unavailable)
     # ──────────────────────────────────────────────────────────────
-    logger.info(f"[4/5] GCS upload ESPN: {league}/{season}")
-    timer.start(f"gcs_upload / espn_{league}_{season}")
-    try:
-        upload_multiple([
-            {
-                "df":        lineups_df,
-                "league":    league,
-                "source":    "espn",
-                "season":    season,
-                "table":     "lineups",
-                "overwrite": False,
-            },
-        ])
-    except Exception as exc:
-        logger.error(f"GCS upload (ESPN) failed ({league}/{season}): {exc}")
+    if espn_ok:
+        logger.info(f"[4/5] GCS upload ESPN: {league}/{season}")
+        timer.start(f"gcs_upload / espn_{league}_{season}")
+        try:
+            upload_multiple([
+                {
+                    "df":        lineups_df,
+                    "league":    league,
+                    "source":    "espn",
+                    "season":    season,
+                    "table":     "lineups",
+                    "overwrite": False,
+                },
+            ])
+        except Exception as exc:
+            logger.error(f"GCS upload (ESPN) failed ({league}/{season}): {exc}")
+            timer.stop(f"gcs_upload / espn_{league}_{season}")
+            return False
         timer.stop(f"gcs_upload / espn_{league}_{season}")
-        return False
-    timer.stop(f"gcs_upload / espn_{league}_{season}")
+    else:
+        logger.info(f"[4/5] GCS upload ESPN: skipped (no data for {league}/{season})")
 
     # ──────────────────────────────────────────────────────────────
     # Step 5 — Load GCS → BigQuery raw
@@ -184,8 +189,9 @@ def _run_league_season(league: str, season: str, timer: PipelineTimer) -> bool:
     bq_steps = [
         ("understat", "matches",      f"bq_load / {league} / {season} / understat_matches"),
         ("understat", "player_stats", f"bq_load / {league} / {season} / understat_player_stats"),
-        ("espn",      "lineups",      f"bq_load / {league} / {season} / espn_lineups"),
     ]
+    if espn_ok:
+        bq_steps.append(("espn", "lineups", f"bq_load / {league} / {season} / espn_lineups"))
 
     for source, table, label in bq_steps:
         timer.start(label)
