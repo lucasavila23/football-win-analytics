@@ -53,4 +53,3 @@ SELECT
     CAST(home_score AS INT64)   - CAST(away_score AS INT64)   AS score_diff
 
 FROM {{ source('raw', 'understat_matches') }}
-WHERE season = '{{ var("target_season", "2023") }}'

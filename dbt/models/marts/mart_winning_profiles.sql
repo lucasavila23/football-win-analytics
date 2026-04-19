@@ -50,6 +50,5 @@ SELECT
     ROUND(STDDEV(ppda),                         3)             AS stddev_ppda
 
 FROM {{ ref('int_team_match_aggregates') }}
-WHERE season = '{{ var("target_season", "2023") }}'
 GROUP BY league, season, match_result, is_home
 ORDER BY league, season, match_result, is_home
