@@ -266,22 +266,24 @@ football-analytics/
 
 ---
 
-## 📋 CURRENT STATUS (as of Dev Log #6, 15th April 2026)
+## 📋 CURRENT STATUS (as of Dev Log #6 + post-session update, 19th April 2026)
 
 ### Complete ✅
 - GCS Loader (`pipeline/loaders/gcs_loader.py`) — 6 smoke tests passing
 - BigQuery Loader (`pipeline/loaders/bigquery_loader.py`) — dry-run safety, batch loading,
-  overwrite=False idempotency (skip if league+season already exists)
+  overwrite=False idempotency (skip if league+season already exists). 5/5 tests passing.
 - GCP infrastructure (project, bucket, BigQuery datasets, service account)
 - GitHub repo scaffold and folder structure
 - `pipeline/config.py` and `main.py` — wired with 5-step pipeline + PipelineTimer
-- Soccerdata source validation across all 5 leagues (2023 season)
-- `pipeline/utils.py` — `normalize_name()` + `PipelineTimer` class
-- `pipeline/scrapers/statsbomb_scraper.py` — StatsBomb Open Data via statsbombpy
-- `pipeline/scrapers/understat_scraper.py` — parallel league fetching, 600s timeout
+- Soccerdata source validation across all 5 leagues (2023 season); join validation complete
+  — all 5 leagues 99–100% date overlap, known gaps documented
+- `pipeline/utils.py` — `normalize_name()` (all 5 leagues) + `PipelineTimer`. 12/12 tests passing.
+- `pipeline/scrapers/statsbomb_scraper.py` — StatsBomb Open Data via statsbombpy.
+  FBref replaced. `STATSBOMB_SEASON_MAP` in `config.py`. Progressive carries computed
+  from coordinates. Champions League excluded. 4/4 tests passing.
+- `pipeline/scrapers/understat_scraper.py` — parallel league fetching, 600s timeout. 7/7 tests passing.
 - `pipeline/scrapers/espn_scraper.py` — parallel league fetching, 600s timeout;
-  nullable int cast fixed (`sub_in`/`sub_out` via `pd.to_numeric(errors='coerce')`)
-- Join validation script (Understat × ESPN, 2023 season)
+  nullable int cast fixed (`sub_in`/`sub_out` via `pd.to_numeric(errors='coerce')`). 6/6 tests passing.
 - End-to-end pipeline run validated: la_liga/2023 — 380 matches, 17,136 lineup rows
 - dbt staging layer: `stg_matches`, `stg_player_stats`, `stg_lineups` — 16/16 tests pass
 - dbt config: `dbt_project.yml`, `profiles.yml` (EU, service-account), `generate_schema_name`
@@ -294,12 +296,29 @@ football-analytics/
 - dbt singular tests: `assert_no_negative_xg`, `assert_match_has_two_teams`
 - Full dbt DAG: PASS=12 models, PASS=18 tests (0 failures, La Liga 2023)
 - Dev Log #6 written to `docs/DEV_LOG.md`
+- Exploratory analysis run against `mart_winning_profiles` — strongest signals: xG creation
+  (1.87 vs 1.14 in losses) and clinical finishing (1.22 vs 0.51 goals per xG).
+  Note: sample_size = 2 (La Liga only), insufficient for conclusions.
+
+### Known gaps before full analysis
+- Progressive carries from StatsBomb not yet flowing into `mart_winning_profiles` SQL
+- BigQuery currently holds only La Liga 2023 (minimal test run). Full backfill needed for
+  all leagues/seasons before analysis queries are meaningful.
+- `feature/understat-scraper` and `feature/espn-scraper` PRs still need merging → main
+
+### GitHub Actions scope decision (final)
+Soccerdata sources don't reliably provide current-season data → scheduled ingestion not viable.
+`pipeline.yml` will have **two triggers only:**
+1. `workflow_dispatch` — manual full backfill / run
+2. `pull_request` — runs `dbt test` on every PR to catch broken models before merge
+No cron/schedule trigger. This still demonstrates proper CI/CD for the submission.
 
 ### Next to build 🔨
-1. Remove `LIMIT` guards from all dbt models before full multi-league backfill
-2. GitHub Actions `pipeline.yml` — orchestrate end-to-end pipeline
+1. Add progressive carries to `mart_winning_profiles` (StatsBomb → mart gap)
+2. GitHub Actions `pipeline.yml` — `workflow_dispatch` + PR `dbt test` only (branch: `feature/github-actions`)
 3. Supabase project setup and mart → Supabase sync
-4. Extend pipeline to all remaining leagues (EPL, Bundesliga, Serie A, Ligue 1)
+4. Full end-to-end pipeline run for all leagues/seasons (remove `LIMIT` guards first)
+5. Re-run 6 analysis queries from `notebooks/analysis/winning_profiles_queries.py` once full data is in
 
 ### Blockers 🚧
 - FBref — replaced by StatsBomb Open Data via `statsbombpy`. Do not attempt
