@@ -10,7 +10,7 @@ LEAGUES = {
     "bundesliga":     "GER-Bundesliga",
     "serie_a":        "ITA-Serie A",
     "ligue_1":        "FRA-Ligue 1",
-    "champions_league": "UEFA-Champions League",
+    # champions_league excluded: Understat and ESPN do not cover UCL
 }
 
 # --- Seasons ---
