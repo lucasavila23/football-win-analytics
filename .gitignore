@@ -25,4 +25,4 @@ dbt/.user.yml
 docs/pipeline_timings/
 
 # macOS
-.DS_Store
+.DS_Storepartner_credentials.json
