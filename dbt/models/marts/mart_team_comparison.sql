@@ -29,7 +29,6 @@ WITH team_season AS (
         ROUND(AVG(ppda),        3)                                  AS avg_ppda,
         ROUND(AVG(deep_completions), 1)                             AS avg_deep_completions
     FROM {{ ref('int_team_match_aggregates') }}
-    WHERE season = '{{ var("target_season", "2023") }}'
     GROUP BY team, league, season
 ),
 

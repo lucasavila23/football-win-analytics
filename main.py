@@ -106,34 +106,36 @@ def _run_league_season(league: str, season: str, timer: PipelineTimer) -> bool:
     if matches_df is None or matches_df.empty:
         logger.error(f"Understat matches returned empty for {league}/{season}")
         return False
-    if players_df is None or players_df.empty:
-        logger.error(f"Understat player_stats returned empty for {league}/{season}")
-        return False
+    players_ok = players_df is not None and not players_df.empty
+    if not players_ok:
+        logger.warning(f"Understat player_stats unavailable for {league}/{season} — will load matches only")
 
     # ──────────────────────────────────────────────────────────────
     # Step 2 — Upload Understat files to GCS
     # ──────────────────────────────────────────────────────────────
     logger.info(f"[2/5] GCS upload Understat: {league}/{season}")
     timer.start(f"gcs_upload / understat_{league}_{season}")
+    gcs_items = [
+        {
+            "df":        matches_df,
+            "league":    league,
+            "source":    "understat",
+            "season":    season,
+            "table":     "matches",
+            "overwrite": False,
+        },
+    ]
+    if players_ok:
+        gcs_items.append({
+            "df":        players_df,
+            "league":    league,
+            "source":    "understat",
+            "season":    season,
+            "table":     "player_stats",
+            "overwrite": False,
+        })
     try:
-        upload_multiple([
-            {
-                "df":        matches_df,
-                "league":    league,
-                "source":    "understat",
-                "season":    season,
-                "table":     "matches",
-                "overwrite": False,
-            },
-            {
-                "df":        players_df,
-                "league":    league,
-                "source":    "understat",
-                "season":    season,
-                "table":     "player_stats",
-                "overwrite": False,
-            },
-        ])
+        upload_multiple(gcs_items)
     except Exception as exc:
         logger.error(f"GCS upload (Understat) failed ({league}/{season}): {exc}")
         timer.stop(f"gcs_upload / understat_{league}_{season}")
@@ -145,39 +147,44 @@ def _run_league_season(league: str, season: str, timer: PipelineTimer) -> bool:
     # ──────────────────────────────────────────────────────────────
     logger.info(f"[3/5] ESPN lineups fetch: {league}/{season}")
     timer.start(f"espn / {league} / {season} / lineups")
+    espn_ok = True
     try:
         lineups_df = scrape_espn_league_season(league, season)
     except Exception as exc:
-        logger.error(f"ESPN lineups fetch failed ({league}/{season}): {exc}")
-        timer.stop(f"espn / {league} / {season} / lineups")
-        return False
+        logger.warning(f"ESPN lineups fetch failed ({league}/{season}): {exc} — skipping ESPN for this season")
+        lineups_df = None
+        espn_ok = False
     timer.stop(f"espn / {league} / {season} / lineups")
 
     if lineups_df is None or lineups_df.empty:
-        logger.error(f"ESPN lineups returned empty for {league}/{season}")
-        return False
+        if espn_ok:
+            logger.warning(f"ESPN lineups returned empty for {league}/{season} — skipping ESPN steps")
+        espn_ok = False
 
     # ──────────────────────────────────────────────────────────────
-    # Step 4 — Upload ESPN lineups to GCS
+    # Step 4 — Upload ESPN lineups to GCS (skipped if ESPN unavailable)
     # ──────────────────────────────────────────────────────────────
-    logger.info(f"[4/5] GCS upload ESPN: {league}/{season}")
-    timer.start(f"gcs_upload / espn_{league}_{season}")
-    try:
-        upload_multiple([
-            {
-                "df":        lineups_df,
-                "league":    league,
-                "source":    "espn",
-                "season":    season,
-                "table":     "lineups",
-                "overwrite": False,
-            },
-        ])
-    except Exception as exc:
-        logger.error(f"GCS upload (ESPN) failed ({league}/{season}): {exc}")
+    if espn_ok:
+        logger.info(f"[4/5] GCS upload ESPN: {league}/{season}")
+        timer.start(f"gcs_upload / espn_{league}_{season}")
+        try:
+            upload_multiple([
+                {
+                    "df":        lineups_df,
+                    "league":    league,
+                    "source":    "espn",
+                    "season":    season,
+                    "table":     "lineups",
+                    "overwrite": False,
+                },
+            ])
+        except Exception as exc:
+            logger.error(f"GCS upload (ESPN) failed ({league}/{season}): {exc}")
+            timer.stop(f"gcs_upload / espn_{league}_{season}")
+            return False
         timer.stop(f"gcs_upload / espn_{league}_{season}")
-        return False
-    timer.stop(f"gcs_upload / espn_{league}_{season}")
+    else:
+        logger.info(f"[4/5] GCS upload ESPN: skipped (no data for {league}/{season})")
 
     # ──────────────────────────────────────────────────────────────
     # Step 5 — Load GCS → BigQuery raw
@@ -185,10 +192,12 @@ def _run_league_season(league: str, season: str, timer: PipelineTimer) -> bool:
     logger.info(f"[5/5] BigQuery load: {league}/{season}")
 
     bq_steps = [
-        ("understat", "matches",      f"bq_load / {league} / {season} / understat_matches"),
-        ("understat", "player_stats", f"bq_load / {league} / {season} / understat_player_stats"),
-        ("espn",      "lineups",      f"bq_load / {league} / {season} / espn_lineups"),
+        ("understat", "matches", f"bq_load / {league} / {season} / understat_matches"),
     ]
+    if players_ok:
+        bq_steps.append(("understat", "player_stats", f"bq_load / {league} / {season} / understat_player_stats"))
+    if espn_ok:
+        bq_steps.append(("espn", "lineups", f"bq_load / {league} / {season} / espn_lineups"))
 
     for source, table, label in bq_steps:
         timer.start(label)

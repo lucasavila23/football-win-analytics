@@ -14,7 +14,6 @@
 --   Always aggregate on: player_name + team + league + season
 --   Never on player_name alone — breaks on transfers and multi-league players.
 --
--- DEVELOPMENT: LIMIT 1000 is active. Remove for production runs.
 -- =============================================================================
 
 {{ config(materialized='table') }}
@@ -53,5 +52,3 @@ SELECT
     CAST(position_id          AS INT64)      AS position_id
 
 FROM {{ source('raw', 'understat_player_stats') }}
-WHERE season = '{{ var("target_season", "2023") }}'
-LIMIT 1000

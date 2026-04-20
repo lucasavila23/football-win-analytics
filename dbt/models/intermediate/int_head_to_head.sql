@@ -7,7 +7,6 @@
 -- The "canonical" team pair uses alphabetical ordering of team names to avoid
 -- double-counting (team_a < team_b always).
 --
--- DEVELOPMENT: LIMIT 1000 active. Remove for production runs.
 -- =============================================================================
 
 {{ config(materialized='table') }}
@@ -41,11 +40,9 @@ SELECT
     ROUND(AVG(CASE WHEN team < opponent THEN xg_against ELSE xg_for  END), 3) AS team_b_avg_xg
 
 FROM {{ ref('int_team_match_aggregates') }}
-WHERE season = '{{ var("target_season", "2023") }}'
 GROUP BY
     CASE WHEN team < opponent THEN team     ELSE opponent END,
     CASE WHEN team < opponent THEN opponent ELSE team     END,
     league,
     season
 
-LIMIT 1000

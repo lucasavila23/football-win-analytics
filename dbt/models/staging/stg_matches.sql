@@ -12,7 +12,6 @@
 -- StatsBomb join: deferred until statsbomb_match_summary is loaded into raw.
 -- When ready, LEFT JOIN on match_date + home_team + away_team (normalised).
 --
--- DEVELOPMENT: LIMIT 1000 is active. Remove for production runs.
 -- =============================================================================
 
 {{ config(materialized='table') }}
@@ -54,5 +53,3 @@ SELECT
     CAST(home_score AS INT64)   - CAST(away_score AS INT64)   AS score_diff
 
 FROM {{ source('raw', 'understat_matches') }}
-WHERE season = '{{ var("target_season", "2023") }}'
-LIMIT 1000
