@@ -1,0 +1,148 @@
+name: Football Analytics Pipeline
+
+on:
+  # Manual trigger — full backfill or targeted run
+  workflow_dispatch:
+    inputs:
+      leagues:
+        description: "Space-separated league slugs, or 'all' for every league"
+        required: false
+        default: "all"
+      seasons:
+        description: "Space-separated seasons (e.g. '2022 2023'), or 'backfill' for full history"
+        required: false
+        default: "2023"
+      run_dbt:
+        description: "Run dbt after ingestion?"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+  # CI — run dbt tests on every PR to catch broken models before merge
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "dbt/**"
+      - "pipeline/**"
+      - "requirements.txt"
+
+env:
+  PYTHON_VERSION: "3.13"
+  DBT_PROFILES_DIR: ${{ github.workspace }}/dbt
+  GCP_PROJECT_ID: football-analytics-491123
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # PR job: dbt test only — no data movement
+  # ---------------------------------------------------------------------------
+  dbt-ci:
+    name: dbt test (PR check)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Write GCP credentials
+        run: |
+          echo '${{ secrets.GCP_CREDENTIALS_JSON }}' > ${{ github.workspace }}/gcp_credentials.json
+
+      - name: dbt test
+        working-directory: dbt
+        run: |
+          dbt test --vars '{"target_season": "2023"}' --no-partial-parse
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp_credentials.json
+          GCP_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
+
+  # ---------------------------------------------------------------------------
+  # Manual trigger: full ingestion + optional dbt run
+  # ---------------------------------------------------------------------------
+  pipeline:
+    name: Ingest + Transform
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Write GCP credentials
+        run: |
+          echo '${{ secrets.GCP_CREDENTIALS_JSON }}' > ${{ github.workspace }}/gcp_credentials.json
+
+      # Build the main.py arguments from workflow inputs
+      - name: Resolve pipeline arguments
+        id: args
+        run: |
+          LEAGUE_ARG=""
+          if [ "${{ github.event.inputs.leagues }}" != "all" ]; then
+            LEAGUE_ARG="--leagues ${{ github.event.inputs.leagues }}"
+          fi
+
+          SEASON_ARG=""
+          if [ "${{ github.event.inputs.seasons }}" = "backfill" ]; then
+            SEASON_ARG="--backfill"
+          else
+            SEASON_ARG="--seasons ${{ github.event.inputs.seasons }}"
+          fi
+
+          echo "league_arg=$LEAGUE_ARG" >> $GITHUB_OUTPUT
+          echo "season_arg=$SEASON_ARG" >> $GITHUB_OUTPUT
+
+      - name: Run ingestion pipeline
+        run: |
+          python main.py ${{ steps.args.outputs.season_arg }} ${{ steps.args.outputs.league_arg }}
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp_credentials.json
+          GCP_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
+
+      - name: dbt run
+        if: github.event.inputs.run_dbt == 'true'
+        working-directory: dbt
+        run: |
+          dbt run --vars '{"target_season": "${{ github.event.inputs.seasons }}"}' --no-partial-parse
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp_credentials.json
+          GCP_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
+
+      - name: dbt test
+        if: github.event.inputs.run_dbt == 'true'
+        working-directory: dbt
+        run: |
+          dbt test --vars '{"target_season": "${{ github.event.inputs.seasons }}"}' --no-partial-parse
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp_credentials.json
+          GCP_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Upload pipeline timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-timings
+          path: docs/pipeline_timings/
+          if-no-files-found: ignore
