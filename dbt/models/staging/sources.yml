@@ -1,0 +1,45 @@
+version: 2
+
+sources:
+  - name: raw
+    database: "{{ env_var('GCP_PROJECT_ID', 'football-analytics-491123') }}"
+    schema: raw
+    description: >
+      Raw tables loaded from GCS bronze by the Python BigQuery loader.
+      Each table has league and season as columns (never as table/schema names).
+
+    tables:
+      - name: understat_matches
+        description: >
+          One row per match from Understat — xG, PPDA, deep completions,
+          NP xG. Covers La Liga, Premier League, Bundesliga, Serie A, Ligue 1.
+        columns:
+          - name: league
+            description: League key (e.g. 'la_liga'). Always a column, never a schema.
+          - name: season
+            description: Season start year as string (e.g. '2023').
+
+      - name: understat_player_stats
+        description: >
+          One row per player per match from Understat. Contains xG, xA,
+          xG_chain, goals, assists, minutes, position.
+        columns:
+          - name: league
+            description: League key.
+          - name: season
+            description: Season start year as string.
+
+      - name: espn_lineups
+        description: >
+          One row per player per match from ESPN lineups. Contains
+          formation_place, sub_in/sub_out minutes, shots, fouls, saves.
+          saves column is 89-90% NULL — expected (goalkeepers only).
+        columns:
+          - name: league
+            description: League key.
+          - name: season
+            description: Season start year as string.
+          - name: saves
+            description: >
+              Only populated for goalkeepers (~1 in 11 players).
+              89-90% NULL rate is expected and correct.

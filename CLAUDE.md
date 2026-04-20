@@ -266,27 +266,40 @@ football-analytics/
 
 ---
 
-## 📋 CURRENT STATUS (as of Dev Log #4, 8th April 2026)
+## 📋 CURRENT STATUS (as of Dev Log #6, 15th April 2026)
 
 ### Complete ✅
 - GCS Loader (`pipeline/loaders/gcs_loader.py`) — 6 smoke tests passing
-- BigQuery Loader (`pipeline/loaders/bigquery_loader.py`) — dry-run safety, batch loading
+- BigQuery Loader (`pipeline/loaders/bigquery_loader.py`) — dry-run safety, batch loading,
+  overwrite=False idempotency (skip if league+season already exists)
 - GCP infrastructure (project, bucket, BigQuery datasets, service account)
 - GitHub repo scaffold and folder structure
-- `pipeline/config.py` and `main.py`
+- `pipeline/config.py` and `main.py` — wired with 5-step pipeline + PipelineTimer
 - Soccerdata source validation across all 5 leagues (2023 season)
-- `pipeline/utils.py` — `normalize_name()` covering all 5 leagues
+- `pipeline/utils.py` — `normalize_name()` + `PipelineTimer` class
 - `pipeline/scrapers/statsbomb_scraper.py` — StatsBomb Open Data via statsbombpy
 - `pipeline/scrapers/understat_scraper.py` — parallel league fetching, 600s timeout
-- `pipeline/scrapers/espn_scraper.py` — parallel league fetching, 600s timeout
+- `pipeline/scrapers/espn_scraper.py` — parallel league fetching, 600s timeout;
+  nullable int cast fixed (`sub_in`/`sub_out` via `pd.to_numeric(errors='coerce')`)
 - Join validation script (Understat × ESPN, 2023 season)
+- End-to-end pipeline run validated: la_liga/2023 — 380 matches, 17,136 lineup rows
+- dbt staging layer: `stg_matches`, `stg_player_stats`, `stg_lineups` — 16/16 tests pass
+- dbt config: `dbt_project.yml`, `profiles.yml` (EU, service-account), `generate_schema_name`
+  macro (prevents `staging_staging` double-prefix)
+- dbt intermediate layer: `int_team_match_aggregates` (UNION ALL unpivot, 760 rows),
+  `int_winning_matches` (273 rows), `int_head_to_head` (190 rows)
+- dbt mart layer: `mart_league_standings`, `mart_winning_profiles`, `mart_player_performance`,
+  `mart_tactical_analysis`, `mart_team_comparison`, `mart_head_to_head` — all 20-row La Liga tables
+- dbt macros: `calculate_win_rate` (SAFE_DIVIDE wrapper)
+- dbt singular tests: `assert_no_negative_xg`, `assert_match_has_two_teams`
+- Full dbt DAG: PASS=12 models, PASS=18 tests (0 failures, La Liga 2023)
+- Dev Log #6 written to `docs/DEV_LOG.md`
 
 ### Next to build 🔨
-1. `pipeline/utils.py` — `PipelineTimer` class for timing instrumentation
-2. Wire scrapers into `main.py` (Understat → ESPN → BigQuery load → timing summary)
-3. dbt staging models (`stg_matches`, `stg_player_stats`, `stg_lineups`)
-4. GitHub Actions `pipeline.yml`
-5. Supabase project setup
+1. Remove `LIMIT` guards from all dbt models before full multi-league backfill
+2. GitHub Actions `pipeline.yml` — orchestrate end-to-end pipeline
+3. Supabase project setup and mart → Supabase sync
+4. Extend pipeline to all remaining leagues (EPL, Bundesliga, Serie A, Ligue 1)
 
 ### Blockers 🚧
 - FBref — replaced by StatsBomb Open Data via `statsbombpy`. Do not attempt
