@@ -25,3 +25,5 @@ python-dotenv
 
 # --- CLI ---
 argparse
+
+reus
