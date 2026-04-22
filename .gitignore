@@ -1,6 +1,7 @@
 # Secrets — never commit these
 .env
 gcp_credentials.json
+partner_credentials.json
 
 # Python
 venv/
@@ -11,6 +12,7 @@ __pycache__/
 
 # soccerdata cache (re-downloadable)
 data/
+!streamlit_app/data/
 
 # dbt
 dbt/target/
@@ -25,4 +27,5 @@ dbt/.user.yml
 docs/pipeline_timings/
 
 # macOS
-.DS_Storepartner_credentials.json
+.DS_Store
+
