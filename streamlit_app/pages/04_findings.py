@@ -66,67 +66,121 @@ def _minmax(series: pd.Series) -> pd.Series:
 
 # ── Query functions ────────────────────────────────────────────────────────────
 
-def _winning_profiles(season_sql: str, league_sql: str) -> pd.DataFrame:
-    sql = f"""
-    SELECT
-        league,
-        match_result,
-        AVG(avg_xg_for)           AS avg_xg_for,
-        AVG(avg_xg_against)       AS avg_xg_against,
-        AVG(avg_goals_scored)     AS avg_goals_scored,
-        AVG(avg_goals_conceded)   AS avg_goals_conceded,
-        AVG(avg_ppda)             AS avg_ppda,
-        AVG(avg_opponent_ppda)    AS avg_opponent_ppda,
-        AVG(avg_deep_completions) AS avg_deep_completions,
-        AVG(avg_np_xg_for)        AS avg_np_xg_for,
-        COUNT(*)                  AS sample_size
-    FROM {_DATASET}.mart_winning_profiles
-    WHERE {season_sql} AND {league_sql}
-    GROUP BY league, match_result
-    ORDER BY league, match_result
-    """
+def _winning_profiles(season_sql: str, league_sql: str, multi_season: bool = False) -> pd.DataFrame:
+    if multi_season:
+        sql = f"""
+        SELECT
+            league,
+            match_result,
+            AVG(avg_xg_for)           AS avg_xg_for,
+            AVG(avg_xg_against)       AS avg_xg_against,
+            AVG(avg_goals_scored)     AS avg_goals_scored,
+            AVG(avg_goals_conceded)   AS avg_goals_conceded,
+            AVG(avg_ppda)             AS avg_ppda,
+            AVG(avg_opponent_ppda)    AS avg_opponent_ppda,
+            AVG(avg_deep_completions) AS avg_deep_completions,
+            AVG(avg_np_xg_for)        AS avg_np_xg_for,
+            COUNT(*)                  AS sample_size
+        FROM {_DATASET}.mart_winning_profiles
+        WHERE {season_sql} AND {league_sql}
+        GROUP BY league, match_result
+        ORDER BY league, match_result
+        """
+    else:
+        sql = f"""
+        SELECT
+            league,
+            match_result,
+            avg_xg_for,
+            avg_xg_against,
+            avg_goals_scored,
+            avg_goals_conceded,
+            avg_ppda,
+            avg_opponent_ppda,
+            avg_deep_completions,
+            avg_np_xg_for,
+            matches AS sample_size
+        FROM {_DATASET}.mart_winning_profiles
+        WHERE {season_sql} AND {league_sql}
+        ORDER BY league, match_result
+        """
     return run_query(sql)
 
 
-def _league_standings(season_sql: str, league_sql: str) -> pd.DataFrame:
-    sql = f"""
-    SELECT
-        team,
-        league,
-        AVG(wins)          AS wins,
-        AVG(draws)         AS draws,
-        AVG(losses)        AS losses,
-        AVG(goals_for)     AS goals_for,
-        AVG(goals_against) AS goals_against,
-        AVG(total_xg_for)  AS total_xg_for,
-        AVG(avg_ppda)      AS avg_ppda,
-        AVG(points)        AS points
-    FROM {_DATASET}.mart_league_standings
-    WHERE {season_sql} AND {league_sql}
-    GROUP BY team, league
-    ORDER BY AVG(points) DESC, AVG(goals_for) DESC
-    LIMIT 40
-    """
+def _league_standings(season_sql: str, league_sql: str, multi_season: bool = False) -> pd.DataFrame:
+    if multi_season:
+        sql = f"""
+        SELECT
+            team,
+            league,
+            AVG(wins)          AS wins,
+            AVG(draws)         AS draws,
+            AVG(losses)        AS losses,
+            AVG(goals_for)     AS goals_for,
+            AVG(goals_against) AS goals_against,
+            AVG(total_xg_for)  AS total_xg_for,
+            AVG(avg_ppda)      AS avg_ppda,
+            AVG(points)        AS points
+        FROM {_DATASET}.mart_league_standings
+        WHERE {season_sql} AND {league_sql}
+        GROUP BY team, league
+        ORDER BY AVG(points) DESC, AVG(goals_for) DESC
+        LIMIT 40
+        """
+    else:
+        sql = f"""
+        SELECT
+            team,
+            league,
+            wins,
+            draws,
+            losses,
+            goals_for,
+            goals_against,
+            total_xg_for,
+            avg_ppda,
+            points
+        FROM {_DATASET}.mart_league_standings
+        WHERE {season_sql} AND {league_sql}
+        ORDER BY points DESC, goals_for DESC
+        LIMIT 40
+        """
     return run_query(sql)
 
 
-def _top_players(season_sql: str, league_sql: str) -> pd.DataFrame:
-    sql = f"""
-    SELECT
-        player_name,
-        team,
-        league,
-        season,
-        SUM(total_xg)          AS total_xg,
-        SUM(total_goals)       AS total_goals,
-        AVG(xg_per_90)         AS xg_per_90,
-        SUM(match_appearances) AS match_appearances
-    FROM {_DATASET}.mart_player_performance
-    WHERE {season_sql} AND {league_sql}
-    GROUP BY player_name, team, league, season
-    ORDER BY SUM(total_xg) DESC
-    LIMIT 10
-    """
+def _top_players(season_sql: str, league_sql: str, multi_season: bool = False) -> pd.DataFrame:
+    if multi_season:
+        sql = f"""
+        SELECT
+            player_name,
+            team,
+            league,
+            SUM(total_xg)          AS total_xg,
+            SUM(total_goals)       AS total_goals,
+            AVG(xg_per_90)         AS xg_per_90,
+            SUM(match_appearances) AS match_appearances
+        FROM {_DATASET}.mart_player_performance
+        WHERE {season_sql} AND {league_sql}
+        GROUP BY player_name, team, league
+        ORDER BY SUM(total_xg) DESC
+        LIMIT 10
+        """
+    else:
+        sql = f"""
+        SELECT
+            player_name,
+            team,
+            league,
+            season,
+            total_xg,
+            total_goals,
+            xg_per_90,
+            match_appearances
+        FROM {_DATASET}.mart_player_performance
+        WHERE {season_sql} AND {league_sql}
+        ORDER BY total_xg DESC
+        LIMIT 10
+        """
     return run_query(sql)
 
 
@@ -244,7 +298,7 @@ def render():
     st.markdown("---")
     with st.spinner("Loading winning profiles…"):
         try:
-            wp = _winning_profiles(season_sql, league_sql)
+            wp = _winning_profiles(season_sql, league_sql, multi_season=(season_mode != "Single season"))
         except Exception as e:
             st.error(f"Winning profiles query failed: {e}")
             wp = pd.DataFrame()
@@ -457,7 +511,7 @@ def render():
 
     with st.spinner("Loading standings…"):
         try:
-            standings = _league_standings(s_season_sql, s_league_sql)
+            standings = _league_standings(s_season_sql, s_league_sql, multi_season=(standings_season_mode != "Single season"))
         except Exception as e:
             st.error(f"Standings query failed: {e}")
             standings = pd.DataFrame()
@@ -496,7 +550,7 @@ def render():
 
     with st.spinner("Loading player data…"):
         try:
-            players = _top_players(season_sql, league_sql)
+            players = _top_players(season_sql, league_sql, multi_season=(season_mode != "Single season"))
         except Exception as e:
             st.error(f"Player query failed: {e}")
             players = pd.DataFrame()
@@ -505,19 +559,21 @@ def render():
         st.warning("No player data for the selected filters.")
     else:
         players["league_name"] = players["league"].map(LEAGUE_LABELS)
+        _show_season = season_mode == "Single season"
+        _player_cols = ["player_name", "team", "league_name"] + (["season"] if _show_season else []) + ["total_xg", "total_goals", "xg_per_90", "match_appearances"]
+        _player_col_cfg = {
+            "player_name":       st.column_config.TextColumn("Player"),
+            "team":              st.column_config.TextColumn("Team"),
+            "league_name":       st.column_config.TextColumn("League"),
+            "season":            st.column_config.TextColumn("Season"),
+            "total_xg":          st.column_config.NumberColumn("Total xG", format="%.3f"),
+            "total_goals":       st.column_config.NumberColumn("Goals",     format="%d"),
+            "xg_per_90":         st.column_config.NumberColumn("xG / 90",   format="%.3f"),
+            "match_appearances": st.column_config.NumberColumn("Apps",      format="%d"),
+        }
         st.dataframe(
-            players[["player_name", "team", "league_name", "season",
-                      "total_xg", "total_goals", "xg_per_90", "match_appearances"]],
-            column_config={
-                "player_name":       st.column_config.TextColumn("Player"),
-                "team":              st.column_config.TextColumn("Team"),
-                "league_name":       st.column_config.TextColumn("League"),
-                "season":            st.column_config.TextColumn("Season"),
-                "total_xg":          st.column_config.NumberColumn("Total xG", format="%.3f"),
-                "total_goals":       st.column_config.NumberColumn("Goals",     format="%d"),
-                "xg_per_90":         st.column_config.NumberColumn("xG / 90",   format="%.3f"),
-                "match_appearances": st.column_config.NumberColumn("Apps",      format="%d"),
-            },
+            players[_player_cols],
+            column_config=_player_col_cfg,
             use_container_width=True,
             hide_index=True,
         )
