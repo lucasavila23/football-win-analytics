@@ -27,7 +27,6 @@ PAGES = {
     "Pipeline Walkthrough":  "02_pipeline.py",
     "Tech Stack":            "03_stack.py",
     "Key Findings":          "04_findings.py",
-    "Dashboard":             "05_findings2.py",
 }
 
 tab_presentation, tab_dashboard = st.tabs(["📊 Presentation", "🗺️ Dashboard"])
