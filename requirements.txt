@@ -28,5 +28,6 @@ argparse
 
 # --- Streamlit app ---
 streamlit
+plotly
 
 reus

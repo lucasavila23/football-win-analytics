@@ -89,7 +89,7 @@ def render():
             |---|---|---|
             | Staging | `stg_*` | Clean, type-cast, standardise. One model per source table. |
             | Intermediate | `int_*` | Join Understat + ESPN on Date + Normalised Team. Compute per-match aggregates. |
-            | Marts | `mart_*` | Pre-aggregate to app-ready granularity. Written to Supabase. |
+            | Marts | `mart_*` | Pre-aggregate to app-ready granularity. Queried directly by Streamlit. |
 
             **Hard rules:**
             - Never `SELECT *` on any non-trivial table — all columns listed explicitly.
@@ -103,17 +103,17 @@ def render():
             """
         )
 
-    with st.expander("5. Supabase Sync", expanded=False):
+    with st.expander("5. Streamlit Presentation", expanded=False):
         st.markdown(
             """
-            After each successful dbt run, `pipeline/loaders/supabase_loader.py`
-            reads mart tables from BigQuery and upserts them into Supabase via the
-            Supabase Python client.
+            The Streamlit app (`streamlit_app/`) queries BigQuery mart tables directly.
 
-            - **Upsert, not insert** — re-running the sync is safe.
-            - **App never queries BigQuery directly** — Supabase is the only serving
-              layer. This means query cost is bounded to pipeline runs, not user traffic.
-            - Supabase DDL is in `docs/supabase_schema.sql`.
+            - **Dry-run guard** — every query estimates bytes before executing.
+              Queries exceeding 10 GB are aborted automatically.
+            - **One-hour cache** — `@st.cache_data(ttl=3600)` on all query functions
+              prevents repeated BigQuery scans when filters are adjusted.
+            - **Marts only** — the app never reads raw, staging, or intermediate tables.
+              All analytical work is pre-computed by dbt and stored in the `marts` dataset.
             """
         )
 

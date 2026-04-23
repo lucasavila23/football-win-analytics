@@ -37,11 +37,11 @@ def render():
             "of GCS storage.",
         ),
         (
-            "Supabase (serving layer)",
-            "Serving directly from BigQuery would expose every dashboard load as a "
-            "BigQuery query, burning free-tier quota proportionally to user traffic. "
-            "Supabase decouples this: one pipeline run writes to Supabase, then all "
-            "frontend reads are Postgres queries against Supabase — zero BigQuery cost.",
+            "Streamlit (presentation layer)",
+            "Streamlit queries BigQuery mart tables directly with a dry-run cost guard "
+            "and one-hour result caching. This removes the need for a separate serving "
+            "database — the dbt marts are already the right granularity for the app, "
+            "and cached results keep repeat BigQuery scans near zero during a session.",
         ),
         (
             "GitHub Actions",

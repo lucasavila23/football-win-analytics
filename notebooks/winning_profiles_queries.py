@@ -242,3 +242,4 @@ print("-" * 60)
 for r in rows:
     print(f"{r.season:<8} {r.avg_xg_for:>8} {r.avg_xg_against:>11} {r.avg_ppda:>7} "
           f"{r.avg_deep:>6} {r.avg_win_rate:>10}")
+    

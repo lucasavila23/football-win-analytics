@@ -39,7 +39,8 @@ def render():
         - **Transforms** raw data through a three-layer dbt pipeline (staging → intermediate
           → marts) to produce pre-aggregated, analytics-ready tables partitioned by season
           and league.
-        - **Serves** pre-cooked mart results to Supabase so the frontend never touches
-          BigQuery directly — keeping query costs at zero for end users.
+        - **Serves** results directly in this Streamlit app, which queries BigQuery mart
+          tables with dry-run cost guards and one-hour caching — keeping typical query
+          costs near zero for exploratory use.
         """
     )

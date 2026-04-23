@@ -28,8 +28,7 @@ def render():
                 BQ_marts  [label="dbt Marts"              fillcolor="#FAD7A0"];
             }
 
-            Supabase  [label="Supabase\\n(REST API)" fillcolor="#D7BDE2"];
-            Lovable   [label="Lovable\\nFrontend"    fillcolor="#FADBD8"];
+            Streamlit [label="Streamlit App\\n(this presentation)" fillcolor="#D7BDE2"];
 
             Understat -> GCS;
             ESPN      -> GCS;
@@ -38,8 +37,7 @@ def render():
             BQ_raw    -> BQ_stg;
             BQ_stg    -> BQ_int;
             BQ_int    -> BQ_marts;
-            BQ_marts  -> Supabase;
-            Supabase  -> Lovable;
+            BQ_marts  -> Streamlit;
         }
         """
     )
@@ -73,10 +71,10 @@ def render():
         st.markdown("#### Serving")
         st.markdown(
             """
-            Mart results are pushed to Supabase once after each pipeline run.
-            The Lovable frontend reads exclusively from Supabase — it never
-            queries BigQuery. This decouples query cost from frontend traffic
-            and keeps GCP free-tier usage bounded.
+            This Streamlit app queries BigQuery mart tables directly. Every
+            query runs a dry-run cost check before execution and results are
+            cached for one hour — so repeated filter changes don't re-scan
+            BigQuery. The app never touches raw or staging tables.
             """
         )
 
