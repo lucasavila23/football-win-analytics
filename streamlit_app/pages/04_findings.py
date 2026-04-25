@@ -534,19 +534,16 @@ GROUP BY league
     col_a, col_b = st.columns(2)
 
     with col_a:
-        st.markdown("##### Finishing efficiency: wins vs losses")
+        st.markdown("##### Conversion rate vs xG volume — where teams land")
         sql_s8a = f"""
-SELECT league, match_result,
-       ROUND(AVG(avg_xg_for), 3)                                    AS avg_xg_for,
-       ROUND(AVG(avg_xg_against), 3)                                 AS avg_xg_against,
-       ROUND(AVG(avg_goals_scored), 3)                                AS avg_goals,
-       ROUND(AVG(avg_goals_scored) / NULLIF(AVG(avg_xg_for), 0), 3) AS finishing_efficiency
-FROM {_DATASET}.mart_winning_profiles
+SELECT team, league,
+       total_xg_for,
+       goals_for,
+       ROUND(goals_for / NULLIF(total_xg_for, 0), 3) AS conversion_rate,
+       ROUND(win_rate, 3)                              AS win_rate
+FROM {_DATASET}.mart_league_standings
 WHERE {season_sql}
   AND {FIXED_LEAGUE_SQL}
-  AND match_result IN ('win', 'loss')
-GROUP BY league, match_result
-ORDER BY league, match_result
 """
         try:
             df_s8a = run_query(sql_s8a)
@@ -556,47 +553,78 @@ ORDER BY league, match_result
             df_s8a = pd.DataFrame()
 
         if not df_s8a.empty:
-            fig_s8a = go.Figure()
-            leagues_s8a = df_s8a['league'].unique()
-            for league in leagues_s8a:
-                sub = df_s8a[df_s8a['league'] == league].sort_values('match_result')
-                label = LEAGUE_LABELS.get(league, league)
-                x_vals = sub['finishing_efficiency'].tolist()
-                y_vals = [label, label]
-                fig_s8a.add_trace(go.Scatter(
-                    x=x_vals, y=y_vals, mode='lines',
-                    line=dict(color='#cccccc', width=2), showlegend=False,
-                ))
-                for _, row in sub.iterrows():
-                    is_win = row['match_result'] == 'win'
-                    color  = '#2ecc71' if is_win else '#e74c3c'
-                    name   = 'Win' if is_win else 'Loss'
-                    fig_s8a.add_trace(go.Scatter(
-                        x=[row['finishing_efficiency']], y=[label],
-                        mode='markers',
-                        marker=dict(size=14, color=color),
-                        name=name,
-                        legendgroup=name,
-                        showlegend=(league == leagues_s8a[0]),
-                        hovertemplate=(
-                            f"<b>{label}</b> — {name}<br>"
-                            f"Finishing efficiency: {row['finishing_efficiency']:.2f}<br>"
-                            f"Avg xG for: {row['avg_xg_for']:.2f}<extra></extra>"
-                        ),
-                    ))
-            fig_s8a.add_vline(x=1.0, line_dash='dash', line_color='#94a3b8', line_width=1)
-            fig_s8a.add_annotation(
-                x=1.0, y=0, text="Perfect conversion", showarrow=False,
-                yref='paper', font=dict(size=9, color='#94a3b8'), xanchor='left')
-            layout_s8a = _base_layout(height=320)
-            layout_s8a["xaxis"]  = dict(title="Finishing efficiency (goals / xG)", gridcolor="#e5e7eb")
-            layout_s8a["title"]  = dict(text="Finishing efficiency by result", font=dict(size=13))
-            layout_s8a["margin"] = dict(t=40, b=40, l=100, r=20)
-            fig_s8a.update_layout(**layout_s8a)
-            st.plotly_chart(fig_s8a, use_container_width=True)
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=df_s8a['total_xg_for'],
+                y=df_s8a['conversion_rate'],
+                mode='markers',
+                marker=dict(
+                    size=11,
+                    color=df_s8a['win_rate'],
+                    colorscale='RdYlGn',
+                    cmin=0.2,
+                    cmax=0.8,
+                    colorbar=dict(
+                        title=dict(text="Win Rate", side="right"),
+                        thickness=12,
+                        len=0.7,
+                        x=1.02,
+                    ),
+                    line=dict(width=0.5, color='#ffffff'),
+                ),
+                customdata=df_s8a[['team', 'win_rate', 'goals_for']].values,
+                hovertemplate=(
+                    "<b>%{customdata[0]}</b><br>"
+                    "Total xG: %{x:.1f}<br>"
+                    "Conversion rate: %{y:.2f}<br>"
+                    "Win rate: %{customdata[1]:.1%}<br>"
+                    "Goals: %{customdata[2]}<extra></extra>"
+                ),
+                showlegend=False,
+            ))
+            median_xg = df_s8a['total_xg_for'].median()
+            fig.add_vline(x=median_xg, line_dash='dot', line_color='#94a3b8', line_width=1)
+            fig.add_hline(y=1.0, line_dash='dot', line_color='#94a3b8', line_width=1)
+            fig.add_annotation(
+                x=0.05, y=0.95, xref='paper', yref='paper',
+                text="HIGH conversion<br>LOW volume<br>LOW win rate",
+                showarrow=False,
+                font=dict(size=9, color='#e74c3c'),
+                align='left',
+                bgcolor='rgba(255,255,255,0.7)',
+                bordercolor='#e74c3c',
+                borderwidth=1,
+                borderpad=3,
+            )
+            fig.add_annotation(
+                x=0.95, y=0.95, xref='paper', yref='paper',
+                text="Elite zone",
+                showarrow=False,
+                font=dict(size=9, color='#2ecc71'),
+                align='right',
+                bgcolor='rgba(255,255,255,0.7)',
+                bordercolor='#2ecc71',
+                borderwidth=1,
+                borderpad=3,
+            )
+            layout = _base_layout(height=420)
+            layout['xaxis'] = dict(
+                title="Total xG created (season)",
+                gridcolor="#e5e7eb",
+                zerolinecolor="#e5e7eb",
+            )
+            layout['yaxis'] = dict(
+                title="Conversion rate (goals / xG)",
+                gridcolor="#e5e7eb",
+                zerolinecolor="#e5e7eb",
+            )
+            layout['margin'] = dict(t=20, b=40, l=60, r=80)
+            fig.update_layout(**layout)
+            st.plotly_chart(fig, use_container_width=True)
             st.caption(
-                "Losing teams can match or exceed winning team finishing efficiency in some "
-                "leagues — yet still lose because the winner created more raw xG volume."
+                "Color = win rate (red = low, green = high). "
+                "Top-left cluster: high conversion, low volume, low win rate — the trap. "
+                "Top-right: elite teams with both."
             )
 
     with col_b:
@@ -636,7 +664,10 @@ LIMIT 10
 
         if not df_s8b.empty:
             df_s8b = df_s8b.sort_values("total_xg", ascending=True)
-            median_xg_s8b = float(df_s8b["total_xg"].median())
+            df_s8b['bar_label'] = df_s8b.apply(
+                lambda r: f"{int(r['total_goals'])}G / {r['total_xg']:.1f}xG",
+                axis=1
+            )
             fig_s8b = go.Figure()
             fig_s8b.add_trace(go.Bar(
                 x=df_s8b['total_xg'],
@@ -646,36 +677,53 @@ LIMIT 10
                     color=df_s8b['conversion_rate'],
                     colorscale='RdYlGn',
                     cmin=0.7, cmax=1.4,
-                    colorbar=dict(title="Goals/xG", thickness=12, len=0.6),
+                    colorbar=dict(
+                        title=dict(text="Goals/xG", side="right"),
+                        thickness=12,
+                        len=0.6,
+                        x=1.0,
+                        xanchor='left',
+                    ),
                     showscale=True,
                 ),
-                text=df_s8b['conversion_rate'].apply(lambda v: f"{v:.2f}"),
+                text=df_s8b['bar_label'],
                 textposition='outside',
                 hovertemplate=(
                     "<b>%{y}</b><br>"
                     "Total xG: %{x:.1f}<br>"
-                    "Goals/xG: %{text}<extra></extra>"
+                    "%{text}<extra></extra>"
                 ),
             ))
-            fig_s8b.add_vline(x=median_xg_s8b, line_dash='dot', line_color='#94a3b8', line_width=1)
-            layout_s8b = _base_layout(height=400)
-            layout_s8b["xaxis"]  = dict(title="Total xG accumulated (season)", gridcolor="#e5e7eb")
-            layout_s8b["title"]  = dict(text="Top xG accumulators — winning teams", font=dict(size=13))
-            layout_s8b["margin"] = dict(t=40, b=40, l=140, r=80)
+            layout_s8b = _base_layout(height=420)
+            layout_s8b["xaxis"] = dict(
+                title="Total xG accumulated (season)",
+                gridcolor="#e5e7eb",
+                zerolinecolor="#e5e7eb",
+                range=[0, df_s8b['total_xg'].max() * 1.35],
+            )
+            layout_s8b["yaxis"] = dict(
+                gridcolor="#e5e7eb",
+                zerolinecolor="#e5e7eb",
+                automargin=True,
+            )
+            layout_s8b["margin"] = dict(t=20, b=40, l=120, r=20)
             fig_s8b.update_layout(**layout_s8b)
             st.plotly_chart(fig_s8b, use_container_width=True)
             st.caption(
-                "Bar color = finishing efficiency (red = below expected, green = above). "
-                "Many top accumulators convert at or below their xG. Volume puts them on "
-                "winning teams — not clinical finishing."
+                "Bar length = total xG accumulated. "
+                "Label = goals scored / xG (e.g. 27G / 26.3xG). "
+                "Color = finishing efficiency (red = below xG, green = above). "
+                "Many top accumulators convert at or below their xG — "
+                "volume puts them on winning teams, not clinical finishing."
             )
 
     st.info(
-        "A team can finish 80% of their chances and still lose if they only had 3. "
-        "The left chart shows losing teams sometimes match or out-convert the winner in finishing "
-        "efficiency — but lose because the winner created more chances in absolute terms. "
-        "The right chart shows the top xG accumulators on winning teams have mixed conversion rates. "
-        "Volume is what puts them there, not finishing efficiency."
+        "The left chart shows teams caught in the conversion trap: "
+        "high finishing efficiency, low xG volume, low win rate (red dots, top-left). "
+        "Elite teams sit top-right — high volume AND high efficiency. "
+        "The right chart shows the top xG accumulators on winning teams: "
+        "labels show their raw goals vs xG, colors show their conversion rate. "
+        "Many are yellow or red — they win because of volume, not because they finish perfectly."
     )
 
     st.markdown("---")
