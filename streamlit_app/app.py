@@ -39,4 +39,4 @@ with tab_presentation:
     _load_page(PAGES[selected]).render()
 
 with tab_dashboard:
-    st.markdown("## Dashboard coming soon")
+    _load_page("05_dashboard.py").render()

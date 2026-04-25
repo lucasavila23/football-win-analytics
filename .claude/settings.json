@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git merge --no-ff feature/statsbomb-scraper -m ':*)",
+      "Bash(git push:*)",
+      "Read(//Users/lucasavila/soccerdata/**)",
+      "Bash(python -)",
+      "Bash(2>&1)",
+      "Bash(python tests/test_understat_scraper.py)",
+      "Bash(python tests/test_espn_scraper.py)",
+      "Bash(python -m pytest tests/test_utils.py -v)",
+      "Bash(python -c \"import main; print\\('syntax OK'\\)\")",
+      "Bash(python -c ':*)",
+      "Bash(python -c \"import os; from dotenv import load_dotenv; load_dotenv\\(\\); print\\(os.getenv\\('GOOGLE_APPLICATION_CREDENTIALS', 'NOT SET'\\)\\)\")",
+      "Bash(dbt run:*)",
+      "Bash(python -c \"from pipeline.scrapers.statsbomb_scraper import scrape_match_summary; print\\('import OK'\\)\")",
+      "Bash(python3 -c \"import yaml; yaml.safe_load\\(open\\('.github/workflows/pipeline.yml'\\)\\); print\\('YAML valid'\\)\")"
+    ]
+  }
+}
