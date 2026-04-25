@@ -19,19 +19,19 @@ from pipeline.config import GCP_PROJECT_ID
 
 _DATASET = f"`{GCP_PROJECT_ID}.marts`"
 
-FIXED_LEAGUES    = ['La Liga', 'Premier League', 'Serie A']
-FIXED_LEAGUE_SQL = "league IN ('La Liga', 'Premier League', 'Serie A')"
+FIXED_LEAGUES    = ['la_liga', 'premier_league', 'serie_a']
+FIXED_LEAGUE_SQL = "league IN ('la_liga', 'premier_league', 'serie_a')"
 FIXED_SEASON_SQL = "season = '2023'"
 
 LEAGUE_LABELS = {
-    'La Liga':        'La Liga',
-    'Premier League': 'Premier League',
-    'Serie A':        'Serie A',
+    'la_liga':        'La Liga',
+    'premier_league': 'Premier League',
+    'serie_a':        'Serie A',
 }
 LEAGUE_COLORS = {
-    'La Liga':        '#e74c3c',
-    'Premier League': '#3498db',
-    'Serie A':        '#2ecc71',
+    'la_liga':        '#e74c3c',
+    'premier_league': '#3498db',
+    'serie_a':        '#2ecc71',
 }
 RESULT_COLORS = {"win": "#2ecc71", "draw": "#f39c12", "loss": "#e74c3c"}
 
@@ -142,12 +142,12 @@ ORDER BY team
         ))
 
     layout_s2 = _base_layout(height=320)
-    layout_s2["barmode"]      = "stack"
-    layout_s2["xaxis"]        = dict(title="Domestic league titles (2014–2023)", gridcolor="#e5e7eb",
-                                      range=[0, 12])
-    layout_s2["yaxis"]        = dict(title="", gridcolor="#e5e7eb", autorange="reversed")
-    layout_s2["showlegend"]   = False
-    layout_s2["margin"]       = dict(t=20, b=40, l=150, r=40)
+    layout_s2["barmode"]    = "stack"
+    layout_s2["xaxis"]      = dict(title="Domestic league titles (2014–2023)", gridcolor="#e5e7eb",
+                                    range=[0, 12])
+    layout_s2["yaxis"]      = dict(title="", gridcolor="#e5e7eb", autorange="reversed")
+    layout_s2["showlegend"] = False
+    layout_s2["margin"]     = dict(t=20, b=40, l=150, r=40)
     fig_s2.update_layout(**layout_s2)
     st.plotly_chart(fig_s2, use_container_width=True)
 
@@ -181,6 +181,13 @@ ORDER BY team
         "and analysed across 3 tables: matches, player_stats, and lineups. "
         "**The question is not philosophical — it has a data answer.**"
     )
+    st.caption(
+        "Match-level metrics (xG per match, finishing efficiency, PPDA) use "
+        "2023 season data as the primary example. Team aggregate comparisons "
+        "and the evolution chart use 10-season averages (2014–2023). "
+        "Player charts use 2023 season data. Sources: Understat + ESPN via "
+        "soccerdata, transformed through dbt into BigQuery."
+    )
 
     st.markdown("---")
 
@@ -204,16 +211,12 @@ ORDER BY team
                         line=dict(color="#ffffff", width=1, dash="dot"))
 
     fig_pitch.add_trace(go.Scatter(
-        x=[101, 63],
-        y=[34, 34],
+        x=[101, 63], y=[34, 34],
         mode='markers',
         marker=dict(size=18, color=['#f39c12', '#e74c3c'],
                     line=dict(color="#ffffff", width=2)),
-        name="Shot locations",
-        showlegend=False,
-        hoverinfo='skip',
+        showlegend=False, hoverinfo='skip',
     ))
-
     fig_pitch.add_annotation(x=101, y=34,
         text="Tap-in<br>0.85 xG", showarrow=True, arrowhead=2, ax=0, ay=-50,
         font=dict(color="#ffffff", size=12), bgcolor="rgba(0,0,0,0.5)",
@@ -228,15 +231,10 @@ ORDER BY team
         bgcolor="rgba(0,0,0,0.45)")
 
     fig_pitch.update_layout(
-        title=dict(text="Same binary outcome, very different chance quality",
-                   font=dict(size=14)),
-        height=340,
-        plot_bgcolor="#2d6a4f",
-        paper_bgcolor="#ffffff",
-        xaxis=dict(showticklabels=False, showgrid=False, zeroline=False,
-                   range=[-5, 112]),
-        yaxis=dict(showticklabels=False, showgrid=False, zeroline=False,
-                   range=[-5, 75]),
+        title=dict(text="Same binary outcome, very different chance quality", font=dict(size=14)),
+        height=340, plot_bgcolor="#2d6a4f", paper_bgcolor="#ffffff",
+        xaxis=dict(showticklabels=False, showgrid=False, zeroline=False, range=[-5, 112]),
+        yaxis=dict(showticklabels=False, showgrid=False, zeroline=False, range=[-5, 75]),
         margin=dict(t=40, b=10, l=10, r=10),
     )
     st.plotly_chart(fig_pitch, use_container_width=True)
@@ -277,43 +275,35 @@ WHERE {season_sql} AND {FIXED_LEAGUE_SQL}
 
         col_a, col_b = st.columns(2)
 
-        # Left — xG Volume vs Win Rate
         with col_a:
             r2_xg, tx_xg, ty_xg = _r2_and_trend(
-                df_s5["total_xg_for"].values,
-                df_s5["win_rate_pct"].values,
-            )
+                df_s5["total_xg_for"].values, df_s5["win_rate_pct"].values)
             fig_s5a = go.Figure()
             for league in FIXED_LEAGUES:
                 sub = df_s5[df_s5["league"] == league]
                 if sub.empty:
                     continue
                 fig_s5a.add_trace(go.Scatter(
-                    x=sub["total_xg_for"], y=sub["win_rate_pct"],
-                    mode='markers',
+                    x=sub["total_xg_for"], y=sub["win_rate_pct"], mode='markers',
                     name=LEAGUE_LABELS.get(league, league),
                     marker=dict(size=10, color=LEAGUE_COLORS.get(league, "#888"),
                                 opacity=0.8, line=dict(width=1, color="#ffffff")),
                     customdata=sub[["team", "league", "win_rate"]].values,
                     hovertemplate=(
-                        "<b>%{customdata[0]}</b><br>"
-                        "League: %{customdata[1]}<br>"
+                        "<b>%{customdata[0]}</b><br>League: %{customdata[1]}<br>"
                         "xG: %{x:.1f} · Win rate: %{y:.1f}%<extra></extra>"
                     ),
                 ))
             if tx_xg is not None:
                 fig_s5a.add_trace(go.Scatter(
-                    x=tx_xg, y=ty_xg, mode='lines', name='Trend',
-                    line=dict(color="#94a3b8", width=1, dash="dash"),
-                    showlegend=False,
-                ))
+                    x=tx_xg, y=ty_xg, mode='lines', showlegend=False,
+                    line=dict(color="#94a3b8", width=1, dash="dash")))
             if r2_xg is not None:
                 fig_s5a.add_annotation(
                     x=0.03, y=0.97, xref="paper", yref="paper",
-                    text=f"R² = {r2_xg:.2f}",
-                    showarrow=False, font=dict(size=11, color="#111111"),
-                    bgcolor="#f8f9fa", bordercolor="#dee2e6", borderwidth=1,
-                )
+                    text=f"R² = {r2_xg:.2f}", showarrow=False,
+                    font=dict(size=11, color="#111111"),
+                    bgcolor="#f8f9fa", bordercolor="#dee2e6", borderwidth=1)
             layout_s5a = _base_layout(height=400)
             layout_s5a["xaxis"]        = dict(title="Total xG created (season)", gridcolor="#e5e7eb")
             layout_s5a["yaxis"]        = dict(title="Win rate (%)", gridcolor="#e5e7eb")
@@ -323,44 +313,36 @@ WHERE {season_sql} AND {FIXED_LEAGUE_SQL}
             fig_s5a.update_layout(**layout_s5a)
             st.plotly_chart(fig_s5a, use_container_width=True)
 
-        # Right — Conversion Rate vs Win Rate
         with col_b:
             df_conv = df_s5.dropna(subset=["conversion_rate"])
             r2_conv, tx_conv, ty_conv = _r2_and_trend(
-                df_conv["conversion_rate"].values,
-                df_conv["win_rate_pct"].values,
-            )
+                df_conv["conversion_rate"].values, df_conv["win_rate_pct"].values)
             fig_s5b = go.Figure()
             for league in FIXED_LEAGUES:
                 sub = df_conv[df_conv["league"] == league]
                 if sub.empty:
                     continue
                 fig_s5b.add_trace(go.Scatter(
-                    x=sub["conversion_rate"], y=sub["win_rate_pct"],
-                    mode='markers',
+                    x=sub["conversion_rate"], y=sub["win_rate_pct"], mode='markers',
                     name=LEAGUE_LABELS.get(league, league),
                     marker=dict(size=10, color=LEAGUE_COLORS.get(league, "#888"),
                                 opacity=0.8, line=dict(width=1, color="#ffffff")),
                     customdata=sub[["team", "league", "win_rate"]].values,
                     hovertemplate=(
-                        "<b>%{customdata[0]}</b><br>"
-                        "League: %{customdata[1]}<br>"
+                        "<b>%{customdata[0]}</b><br>League: %{customdata[1]}<br>"
                         "Conv: %{x:.3f} · Win rate: %{y:.1f}%<extra></extra>"
                     ),
                 ))
             if tx_conv is not None:
                 fig_s5b.add_trace(go.Scatter(
-                    x=tx_conv, y=ty_conv, mode='lines', name='Trend',
-                    line=dict(color="#94a3b8", width=1, dash="dash"),
-                    showlegend=False,
-                ))
+                    x=tx_conv, y=ty_conv, mode='lines', showlegend=False,
+                    line=dict(color="#94a3b8", width=1, dash="dash")))
             if r2_conv is not None:
                 fig_s5b.add_annotation(
                     x=0.03, y=0.97, xref="paper", yref="paper",
-                    text=f"R² = {r2_conv:.2f}",
-                    showarrow=False, font=dict(size=11, color="#111111"),
-                    bgcolor="#f8f9fa", bordercolor="#dee2e6", borderwidth=1,
-                )
+                    text=f"R² = {r2_conv:.2f}", showarrow=False,
+                    font=dict(size=11, color="#111111"),
+                    bgcolor="#f8f9fa", bordercolor="#dee2e6", borderwidth=1)
             layout_s5b = _base_layout(height=400)
             layout_s5b["xaxis"]        = dict(title="Goals scored / xG (conversion rate)", gridcolor="#e5e7eb")
             layout_s5b["yaxis"]        = dict(title="Win rate (%)", gridcolor="#e5e7eb")
@@ -385,7 +367,6 @@ WHERE {season_sql} AND {FIXED_LEAGUE_SQL}
     # ── Slide 6 — The Other Metrics (and Why They're Weaker) ─────────────────
     st.markdown("### Slide 6 — The Other Metrics (and Why They're Weaker)")
 
-    # Part A — Three pillars ranked (hardcoded)
     metrics   = ["Finishing Efficiency\n(Goals/xG ratio)", "xG Creation",
                  "Pressing Intensity\n(PPDA)"]
     pct_diff  = [120, 90, 13]
@@ -393,12 +374,8 @@ WHERE {season_sql} AND {FIXED_LEAGUE_SQL}
 
     fig_s6a = go.Figure()
     fig_s6a.add_trace(go.Bar(
-        y=metrics,
-        x=pct_diff,
-        orientation='h',
-        marker_color=bar_colors,
-        text=[f"{v}% difference" for v in pct_diff],
-        textposition='outside',
+        y=metrics, x=pct_diff, orientation='h', marker_color=bar_colors,
+        text=[f"{v}% difference" for v in pct_diff], textposition='outside',
     ))
     fig_s6a.add_vline(x=13, line_dash="dash", line_color="#bdc3c7",
                       annotation_text="Pressing", annotation_position="top right",
@@ -407,8 +384,7 @@ WHERE {season_sql} AND {FIXED_LEAGUE_SQL}
                       annotation_text="xG", annotation_position="top right",
                       annotation_font=dict(size=10, color="#3498db"))
     layout_s6a = _base_layout(height=320)
-    layout_s6a["xaxis"]  = dict(title="Win vs Loss % difference", gridcolor="#e5e7eb",
-                                 range=[0, 145])
+    layout_s6a["xaxis"]  = dict(title="Win vs Loss % difference", gridcolor="#e5e7eb", range=[0, 145])
     layout_s6a["yaxis"]  = dict(title="", gridcolor="#e5e7eb")
     layout_s6a["title"]  = dict(text="Not all metrics are equal", font=dict(size=14))
     layout_s6a["margin"] = dict(t=40, b=40, l=185, r=90)
@@ -422,7 +398,6 @@ WHERE {season_sql} AND {FIXED_LEAGUE_SQL}
         "— it is the weakest of the three signals."
     )
 
-    # Part B — Evolution graph (live query)
     st.markdown("#### How the metrics have evolved (all seasons)")
 
     sql_s6b = f"""
@@ -444,10 +419,6 @@ ORDER BY season
     if not df_s6b.empty:
         df_s6b = df_s6b.copy()
         df_s6b["pressing_intensity"] = (10 / df_s6b["avg_ppda"].replace(0, float("nan"))).round(3)
-
-        seasons_list = df_s6b["season"].tolist()
-        mid_season   = seasons_list[len(seasons_list) // 2] if seasons_list else "2019"
-
         fig_s6b = go.Figure()
         fig_s6b.add_trace(go.Scatter(
             x=df_s6b["season"], y=df_s6b["avg_xg_for"],
@@ -459,27 +430,21 @@ ORDER BY season
             name="Pressing Intensity (10/PPDA)", mode="lines+markers",
             line=dict(color="#e74c3c", width=2, dash="dash"), marker=dict(size=6), yaxis="y2",
         ))
-
         layout_s6b = _base_layout(height=420)
         layout_s6b["xaxis"]  = dict(title="Season", gridcolor="#e5e7eb")
         layout_s6b["yaxis"]  = dict(
             title=dict(text="Avg xG Created", font=dict(color="#2ecc71")),
-            tickfont=dict(color="#2ecc71"), gridcolor="#e5e7eb",
-        )
+            tickfont=dict(color="#2ecc71"), gridcolor="#e5e7eb")
         layout_s6b["yaxis2"] = dict(
             title=dict(text="Pressing Intensity (10/PPDA)", font=dict(color="#e74c3c")),
-            tickfont=dict(color="#e74c3c"), overlaying="y", side="right", showgrid=False,
-        )
+            tickfont=dict(color="#e74c3c"), overlaying="y", side="right", showgrid=False)
         layout_s6b["legend"] = dict(x=0.01, y=0.99)
         layout_s6b["annotations"] = [
             go.layout.Annotation(
-                x=0.5, y=0.5,
-                xref="paper", yref="paper",
-                text="Win rate: flat →",
-                showarrow=False,
+                x=0.5, y=0.5, xref="paper", yref="paper",
+                text="Win rate: flat →", showarrow=False,
                 font=dict(size=12, color="#94a3b8"),
-                bgcolor="rgba(255,255,255,0.7)",
-            )
+                bgcolor="rgba(255,255,255,0.7)")
         ]
         fig_s6b.update_layout(**layout_s6b)
         st.plotly_chart(fig_s6b, use_container_width=True)
@@ -515,7 +480,7 @@ GROUP BY league
     if df_s7.empty:
         st.warning("Using fallback data — live query returned empty")
         df_s7 = pd.DataFrame({
-            'league':         ['La Liga', 'Premier League', 'Serie A'],
+            'league':         ['la_liga', 'premier_league', 'serie_a'],
             'avg_xg_for':     [1.92,      1.88,             1.81],
             'avg_xg_against': [0.78,      0.81,             0.84],
         })
@@ -524,37 +489,28 @@ GROUP BY league
     fig_s7.add_trace(go.Bar(
         name="xG Created",
         x=[LEAGUE_LABELS.get(l, l) for l in df_s7["league"]],
-        y=df_s7["avg_xg_for"],
-        marker_color="#2ecc71",
+        y=df_s7["avg_xg_for"], marker_color="#2ecc71",
     ))
     fig_s7.add_trace(go.Bar(
         name="xG Conceded",
         x=[LEAGUE_LABELS.get(l, l) for l in df_s7["league"]],
-        y=(-df_s7["avg_xg_against"]).round(3),
-        marker_color="#e74c3c",
+        y=(-df_s7["avg_xg_against"]).round(3), marker_color="#e74c3c",
     ))
-
     for _, row in df_s7.iterrows():
         diff = row["avg_xg_for"] - row["avg_xg_against"]
         fig_s7.add_annotation(
             x=LEAGUE_LABELS.get(row["league"], row["league"]),
             y=row["avg_xg_for"] + 0.04,
-            text=f"+{diff:.2f}",
-            showarrow=False,
-            font=dict(size=12, color="#111111"),
-        )
-
+            text=f"+{diff:.2f}", showarrow=False,
+            font=dict(size=12, color="#111111"))
     layout_s7 = _base_layout(height=400)
     layout_s7["barmode"]     = "relative"
     layout_s7["yaxis_title"] = "Avg xG per match (wins only)"
-    layout_s7["title"]       = dict(text="xG For vs Against — winning matches only",
-                                     font=dict(size=13))
+    layout_s7["title"]       = dict(text="xG For vs Against — winning matches only", font=dict(size=13))
     layout_s7["shapes"]      = [
-        go.layout.Shape(
-            type="line", x0=0, x1=1, y0=0, y1=0,
-            xref="paper", yref="y",
-            line=dict(color="#000000", width=2),
-        )
+        go.layout.Shape(type="line", x0=0, x1=1, y0=0, y1=0,
+                        xref="paper", yref="y",
+                        line=dict(color="#000000", width=2))
     ]
     layout_s7["margin"] = dict(t=40, b=40, l=60, r=20)
     fig_s7.update_layout(**layout_s7)
@@ -570,18 +526,27 @@ GROUP BY league
 
     # ── Slide 8 — The Conversion Trap ────────────────────────────────────────
     st.markdown("### Slide 8 — The Conversion Trap")
+    st.markdown(
+        "High conversion rate without volume does not win leagues. "
+        "These two charts show why."
+    )
 
     col_a, col_b = st.columns(2)
 
     with col_a:
-        st.markdown("**Team level — conversion rate vs xG volume**")
+        st.markdown("##### Finishing efficiency: wins vs losses")
         sql_s8a = f"""
-SELECT team, league,
-       total_xg_for,
-       ROUND(goals_for / NULLIF(total_xg_for, 0), 3) AS conversion_rate,
-       win_rate
-FROM {_DATASET}.mart_league_standings
-WHERE {season_sql} AND {FIXED_LEAGUE_SQL}
+SELECT league, match_result,
+       ROUND(AVG(avg_xg_for), 3)                                    AS avg_xg_for,
+       ROUND(AVG(avg_xg_against), 3)                                 AS avg_xg_against,
+       ROUND(AVG(avg_goals_scored), 3)                                AS avg_goals,
+       ROUND(AVG(avg_goals_scored) / NULLIF(AVG(avg_xg_for), 0), 3) AS finishing_efficiency
+FROM {_DATASET}.mart_winning_profiles
+WHERE {season_sql}
+  AND {FIXED_LEAGUE_SQL}
+  AND match_result IN ('win', 'loss')
+GROUP BY league, match_result
+ORDER BY league, match_result
 """
         try:
             df_s8a = run_query(sql_s8a)
@@ -591,65 +556,69 @@ WHERE {season_sql} AND {FIXED_LEAGUE_SQL}
             df_s8a = pd.DataFrame()
 
         if not df_s8a.empty:
-            median_xg = float(df_s8a["total_xg_for"].median())
             fig_s8a = go.Figure()
-            fig_s8a.add_trace(go.Scatter(
-                x=df_s8a["total_xg_for"],
-                y=df_s8a["conversion_rate"],
-                mode='markers',
-                marker=dict(
-                    size=10,
-                    color=df_s8a["win_rate"],
-                    colorscale='RdYlGn',
-                    showscale=True,
-                    colorbar=dict(title="Win Rate"),
-                    line=dict(width=1, color="#ffffff"),
-                ),
-                customdata=df_s8a[["team", "league", "win_rate"]].values,
-                hovertemplate=(
-                    "<b>%{customdata[0]}</b><br>"
-                    "League: %{customdata[1]}<br>"
-                    "xG: %{x:.1f} · Conv: %{y:.3f}<br>"
-                    "Win rate: %{customdata[2]:.3f}<extra></extra>"
-                ),
-            ))
-            fig_s8a.add_vline(x=median_xg, line_dash="dash", line_color="#94a3b8")
-            fig_s8a.add_hline(y=1.0, line_dash="dash", line_color="#94a3b8")
+            leagues_s8a = df_s8a['league'].unique()
+            for league in leagues_s8a:
+                sub = df_s8a[df_s8a['league'] == league].sort_values('match_result')
+                label = LEAGUE_LABELS.get(league, league)
+                x_vals = sub['finishing_efficiency'].tolist()
+                y_vals = [label, label]
+                fig_s8a.add_trace(go.Scatter(
+                    x=x_vals, y=y_vals, mode='lines',
+                    line=dict(color='#cccccc', width=2), showlegend=False,
+                ))
+                for _, row in sub.iterrows():
+                    is_win = row['match_result'] == 'win'
+                    color  = '#2ecc71' if is_win else '#e74c3c'
+                    name   = 'Win' if is_win else 'Loss'
+                    fig_s8a.add_trace(go.Scatter(
+                        x=[row['finishing_efficiency']], y=[label],
+                        mode='markers',
+                        marker=dict(size=14, color=color),
+                        name=name,
+                        legendgroup=name,
+                        showlegend=(league == leagues_s8a[0]),
+                        hovertemplate=(
+                            f"<b>{label}</b> — {name}<br>"
+                            f"Finishing efficiency: {row['finishing_efficiency']:.2f}<br>"
+                            f"Avg xG for: {row['avg_xg_for']:.2f}<extra></extra>"
+                        ),
+                    ))
+            fig_s8a.add_vline(x=1.0, line_dash='dash', line_color='#94a3b8', line_width=1)
             fig_s8a.add_annotation(
-                x=0.07, y=0.93, xref="paper", yref="paper",
-                text="HIGH conversion<br>LOW volume<br>LOW win rate",
-                showarrow=False, font=dict(size=10, color="#e74c3c"),
-                bgcolor="#fff5f5", bordercolor="#e74c3c", borderwidth=1,
-            )
-            fig_s8a.add_annotation(
-                x=0.92, y=0.93, xref="paper", yref="paper",
-                text="Elite zone",
-                showarrow=False, font=dict(size=10, color="#2ecc71"),
-                bgcolor="#f0fff4", bordercolor="#2ecc71", borderwidth=1,
-            )
-            layout_s8a = _base_layout(height=420)
-            layout_s8a["xaxis"]  = dict(title="Total xG created (season)", gridcolor="#e5e7eb")
-            layout_s8a["yaxis"]  = dict(title="Conversion rate (goals / xG)", gridcolor="#e5e7eb")
-            layout_s8a["title"]  = dict(text="Team conversion rate vs xG volume", font=dict(size=13))
-            layout_s8a["margin"] = dict(t=40, b=40, l=60, r=80)
+                x=1.0, y=0, text="Perfect conversion", showarrow=False,
+                yref='paper', font=dict(size=9, color='#94a3b8'), xanchor='left')
+            layout_s8a = _base_layout(height=320)
+            layout_s8a["xaxis"]  = dict(title="Finishing efficiency (goals / xG)", gridcolor="#e5e7eb")
+            layout_s8a["title"]  = dict(text="Finishing efficiency by result", font=dict(size=13))
+            layout_s8a["margin"] = dict(t=40, b=40, l=100, r=20)
             fig_s8a.update_layout(**layout_s8a)
             st.plotly_chart(fig_s8a, use_container_width=True)
+            st.caption(
+                "Losing teams can match or exceed winning team finishing efficiency in some "
+                "leagues — yet still lose because the winner created more raw xG volume."
+            )
 
     with col_b:
-        st.markdown("**Player level — top xG accumulators vs goals**")
+        st.markdown("##### Top xG accumulators — winning teams only")
         sql_s8b = f"""
-SELECT player_name, team, league,
-       total_xg,
-       total_goals,
-       ROUND(total_goals / NULLIF(total_xg, 0), 2) AS conversion_rate,
-       match_appearances
-FROM {_DATASET}.mart_player_performance
-WHERE {season_sql}
-  AND {FIXED_LEAGUE_SQL}
-  AND match_appearances >= 5
-  AND total_xg > 0
-ORDER BY total_xg DESC
-LIMIT 20
+SELECT p.player_name, p.team, p.league,
+       p.total_xg,
+       p.total_goals,
+       ROUND(p.total_goals / NULLIF(p.total_xg, 0), 2) AS conversion_rate,
+       p.match_appearances
+FROM {_DATASET}.mart_player_performance p
+JOIN {_DATASET}.mart_league_standings ls
+  ON p.team   = ls.team
+ AND p.league = ls.league
+ AND p.season = ls.season
+WHERE p.season = (SELECT MAX(season) FROM {_DATASET}.mart_player_performance)
+  AND p.league IN ('la_liga', 'premier_league', 'serie_a')
+  AND p.match_appearances >= 5
+  AND p.total_xg > 0
+  AND ls.win_rate >= 0.55
+ORDER BY p.total_xg DESC
+LIMIT 10
 """
         try:
             df_s8b = run_query(sql_s8b)
@@ -658,91 +627,75 @@ LIMIT 20
             st.code(sql_s8b, language="sql")
             df_s8b = pd.DataFrame()
 
+        if not df_s8b.empty and len(df_s8b) < 5:
+            sql_s8b_retry = sql_s8b.replace("ls.win_rate >= 0.55", "ls.win_rate >= 0.50")
+            try:
+                df_s8b = run_query(sql_s8b_retry)
+            except Exception:
+                pass
+
         if not df_s8b.empty:
-            max_val_s8b = max(df_s8b["total_xg"].max(), df_s8b["total_goals"].max()) * 1.15
-
+            df_s8b = df_s8b.sort_values("total_xg", ascending=True)
+            median_xg_s8b = float(df_s8b["total_xg"].median())
             fig_s8b = go.Figure()
-            for league in FIXED_LEAGUES:
-                sub = df_s8b[df_s8b["league"] == league].head(10)
-                if sub.empty:
-                    continue
-                fig_s8b.add_trace(go.Scatter(
-                    x=sub["total_xg"], y=sub["total_goals"],
-                    mode='markers+text',
-                    name=LEAGUE_LABELS.get(league, league),
-                    text=sub["player_name"].str.title(),
-                    textposition="top center",
-                    textfont=dict(size=8),
-                    marker=dict(size=12, color=LEAGUE_COLORS.get(league, "#888"),
-                                opacity=0.8, line=dict(width=1, color="#ffffff")),
-                    customdata=sub[["player_name", "team", "conversion_rate"]].values,
-                    hovertemplate=(
-                        "<b>%{customdata[0]}</b> (%{customdata[1]})<br>"
-                        "xG: %{x:.2f} · Goals: %{y}<br>"
-                        "Conv: %{customdata[2]:.2f}<extra></extra>"
-                    ),
-                ))
-            fig_s8b.add_shape(type="line", x0=0, y0=0, x1=max_val_s8b, y1=max_val_s8b,
-                              line=dict(dash="dash", color="#94a3b8", width=1))
-
-            # Red dashed circle around high-conversion, low-volume "trap" players
-            median_xg_p = float(df_s8b["total_xg"].median())
-            trap = df_s8b[
-                (df_s8b["total_xg"] < median_xg_p) &
-                (df_s8b["conversion_rate"] > 1.2)
-            ]
-            if not trap.empty:
-                cx = float(trap["total_xg"].mean())
-                cy = float(trap["total_goals"].mean())
-                rx = max(float(trap["total_xg"].std() or 0), 0.5) * 2
-                ry = max(float(trap["total_goals"].std() or 0), 0.5) * 2
-                fig_s8b.add_shape(
-                    type="circle",
-                    x0=cx - rx, y0=cy - ry, x1=cx + rx, y1=cy + ry,
-                    line=dict(color="#e74c3c", width=2, dash="dash"),
-                    fillcolor="rgba(0,0,0,0)",
-                )
-                fig_s8b.add_annotation(
-                    x=cx, y=cy + ry + 1,
-                    text="High conversion,<br>low volume",
-                    showarrow=True, arrowhead=2, ax=30, ay=-20,
-                    font=dict(size=9, color="#e74c3c"),
-                )
-
-            layout_s8b = _base_layout(height=420)
-            layout_s8b["xaxis"]        = dict(title="Total xG (season)", gridcolor="#e5e7eb")
-            layout_s8b["yaxis"]        = dict(title="Goals scored", gridcolor="#e5e7eb")
-            layout_s8b["legend_title"] = "League"
-            layout_s8b["title"]        = dict(text="Top players: xG accumulated vs goals scored",
-                                               font=dict(size=13))
-            layout_s8b["margin"]       = dict(t=40, b=40, l=60, r=20)
+            fig_s8b.add_trace(go.Bar(
+                x=df_s8b['total_xg'],
+                y=df_s8b['player_name'].str.title(),
+                orientation='h',
+                marker=dict(
+                    color=df_s8b['conversion_rate'],
+                    colorscale='RdYlGn',
+                    cmin=0.7, cmax=1.4,
+                    colorbar=dict(title="Goals/xG", thickness=12, len=0.6),
+                    showscale=True,
+                ),
+                text=df_s8b['conversion_rate'].apply(lambda v: f"{v:.2f}"),
+                textposition='outside',
+                hovertemplate=(
+                    "<b>%{y}</b><br>"
+                    "Total xG: %{x:.1f}<br>"
+                    "Goals/xG: %{text}<extra></extra>"
+                ),
+            ))
+            fig_s8b.add_vline(x=median_xg_s8b, line_dash='dot', line_color='#94a3b8', line_width=1)
+            layout_s8b = _base_layout(height=400)
+            layout_s8b["xaxis"]  = dict(title="Total xG accumulated (season)", gridcolor="#e5e7eb")
+            layout_s8b["title"]  = dict(text="Top xG accumulators — winning teams", font=dict(size=13))
+            layout_s8b["margin"] = dict(t=40, b=40, l=140, r=80)
             fig_s8b.update_layout(**layout_s8b)
             st.plotly_chart(fig_s8b, use_container_width=True)
+            st.caption(
+                "Bar color = finishing efficiency (red = below expected, green = above). "
+                "Many top accumulators convert at or below their xG. Volume puts them on "
+                "winning teams — not clinical finishing."
+            )
 
     st.info(
-        "A player or team can finish 80% of their chances and still lose if they only had 3. "
-        "Conversion rate without volume is noise. The players above the diagonal are "
-        "overperforming their xG — but the players that matter for winning are the ones "
-        "furthest right on the x-axis, regardless of where they sit relative to the diagonal line."
+        "A team can finish 80% of their chances and still lose if they only had 3. "
+        "The left chart shows losing teams sometimes match or out-convert the winner in finishing "
+        "efficiency — but lose because the winner created more chances in absolute terms. "
+        "The right chart shows the top xG accumulators on winning teams have mixed conversion rates. "
+        "Volume is what puts them there, not finishing efficiency."
     )
 
     st.markdown("---")
 
     # ── Slide 9 — Does a Star Striker Actually Matter? ────────────────────────
     st.markdown("### Slide 9 — Does a Star Striker Actually Matter?")
+    st.markdown(
+        "If winning required a dominant scorer, goal concentration would "
+        "predict win rate. The data shows it does not."
+    )
 
-    col_a, col_b = st.columns(2)
-
-    with col_a:
-        st.markdown("**Goal concentration vs win rate**")
-        sql_s9a = f"""
+    sql_s9 = f"""
 WITH player_goals AS (
     SELECT team, league, season, player_name, total_goals,
            SUM(total_goals) OVER (
                PARTITION BY team, league, season
            ) AS team_total_goals
     FROM {_DATASET}.mart_player_performance
-    WHERE {season_sql} AND {FIXED_LEAGUE_SQL}
+    WHERE {season_sql}
+      AND {FIXED_LEAGUE_SQL}
 ),
 top_scorers AS (
     SELECT team, league, season, player_name, total_goals,
@@ -757,164 +710,115 @@ top_scorers AS (
 SELECT ts.team, ts.league, ts.player_name AS top_scorer,
        ts.total_goals AS top_scorer_goals,
        ts.team_total_goals,
-       ts.top_scorer_share,
-       ls.win_rate
+       ROUND(ts.top_scorer_share * 100, 1) AS top_scorer_pct,
+       ROUND(ls.win_rate * 100, 1)          AS win_rate_pct
 FROM top_scorers ts
 JOIN {_DATASET}.mart_league_standings ls
-  ON ts.team = ls.team
+  ON ts.team   = ls.team
  AND ts.league = ls.league
  AND ts.season = ls.season
 WHERE ts.rn = 1
   AND ts.team_total_goals > 0
 """
-        try:
-            df_s9a = run_query(sql_s9a)
-        except Exception as e:
-            st.error(f"Query failed: {e}")
-            st.code(sql_s9a, language="sql")
-            df_s9a = pd.DataFrame()
+    try:
+        df_s9 = run_query(sql_s9)
+    except Exception as e:
+        st.error(f"Query failed: {e}")
+        st.code(sql_s9, language="sql")
+        df_s9 = pd.DataFrame()
 
-        if not df_s9a.empty:
-            r2_s9, tx_s9, ty_s9 = _r2_and_trend(
-                df_s9a["top_scorer_share"].values * 100,
-                df_s9a["win_rate"].values * 100,
-            )
-            fig_s9a = go.Figure()
-            for league in FIXED_LEAGUES:
-                sub = df_s9a[df_s9a["league"] == league]
-                if sub.empty:
-                    continue
-                fig_s9a.add_trace(go.Scatter(
-                    x=sub["top_scorer_share"] * 100,
-                    y=sub["win_rate"] * 100,
-                    mode='markers',
-                    name=LEAGUE_LABELS.get(league, league),
-                    marker=dict(size=10, color=LEAGUE_COLORS.get(league, "#888"),
-                                opacity=0.75, line=dict(width=1, color="#ffffff")),
-                    customdata=sub[["team", "top_scorer", "top_scorer_goals"]].values,
-                    hovertemplate=(
-                        "<b>%{customdata[0]}</b><br>"
-                        "Top scorer: %{customdata[1]} (%{customdata[2]} goals)<br>"
-                        "Share: %{x:.1f}% · Win rate: %{y:.1f}%<extra></extra>"
-                    ),
-                ))
-            if tx_s9 is not None:
-                fig_s9a.add_trace(go.Scatter(
-                    x=tx_s9, y=ty_s9, mode='lines', name='Trend',
-                    line=dict(color="#94a3b8", width=1, dash="dash"),
-                    showlegend=False,
-                ))
-            fig_s9a.add_vline(x=30, line_dash="dash", line_color="#94a3b8",
-                              annotation_text="30%", annotation_position="top right")
-            layout_s9a = _base_layout(height=400)
-            layout_s9a["xaxis"]        = dict(title="Top scorer's % of team goals", gridcolor="#e5e7eb")
-            layout_s9a["yaxis"]        = dict(title="Win rate (%)", gridcolor="#e5e7eb")
-            layout_s9a["legend_title"] = "League"
-            layout_s9a["title"]        = dict(text="Top scorer share vs win rate", font=dict(size=13))
-            layout_s9a["margin"]       = dict(t=40, b=40, l=60, r=20)
-            fig_s9a.update_layout(**layout_s9a)
-            st.plotly_chart(fig_s9a, use_container_width=True)
-
-    with col_b:
-        st.markdown("**Top xG accumulators — do they convert above their xG?**")
-        sql_s9b = f"""
-SELECT player_name, team, league,
-       total_xg,
-       total_goals,
-       ROUND(total_goals / NULLIF(total_xg, 0), 2) AS conversion_rate,
-       match_appearances
-FROM {_DATASET}.mart_player_performance
-WHERE {season_sql}
-  AND {FIXED_LEAGUE_SQL}
-  AND match_appearances >= 5
-  AND total_xg > 0
-ORDER BY total_xg DESC
-LIMIT 12
-"""
-        try:
-            df_s9b = run_query(sql_s9b)
-        except Exception as e:
-            st.error(f"Query failed: {e}")
-            st.code(sql_s9b, language="sql")
-            df_s9b = pd.DataFrame()
-
-        if not df_s9b.empty:
-            df_s9b = df_s9b.sort_values("total_xg", ascending=True)
-            median_xg_s9 = float(df_s9b["total_xg"].median())
-            fig_s9b = go.Figure()
-            fig_s9b.add_trace(go.Bar(
-                y=df_s9b["player_name"].str.title(),
-                x=df_s9b["total_xg"],
-                orientation='h',
-                marker=dict(
-                    color=df_s9b["conversion_rate"],
-                    colorscale='RdYlGn',
-                    cmin=0.5, cmax=1.5,
-                    colorbar=dict(title="Conversion rate<br>(goals/xG)"),
-                    showscale=True,
-                ),
-                text=[f"{v:.2f}" for v in df_s9b["conversion_rate"]],
-                textposition='outside',
-                customdata=df_s9b[["team", "total_goals", "conversion_rate"]].values,
+    if not df_s9.empty:
+        fig_s9 = go.Figure()
+        for league in FIXED_LEAGUES:
+            sub = df_s9[df_s9["league"] == league]
+            if sub.empty:
+                continue
+            fig_s9.add_trace(go.Scatter(
+                x=sub["top_scorer_pct"], y=sub["win_rate_pct"],
+                mode='markers',
+                name=LEAGUE_LABELS.get(league, league),
+                marker=dict(size=10, color=LEAGUE_COLORS.get(league, "#888"),
+                            opacity=0.75, line=dict(width=1, color="#ffffff")),
+                customdata=sub[["team", "top_scorer", "top_scorer_goals"]].values,
                 hovertemplate=(
-                    "<b>%{y}</b> (%{customdata[0]})<br>"
-                    "xG: %{x:.2f} · Goals: %{customdata[1]}<br>"
-                    "Conv: %{customdata[2]:.2f}<extra></extra>"
+                    "<b>%{customdata[0]}</b><br>"
+                    "Top scorer: %{customdata[1]} (%{customdata[2]} goals)<br>"
+                    "Share: %{x:.1f}% · Win rate: %{y:.1f}%<extra></extra>"
                 ),
             ))
-            fig_s9b.add_vline(x=median_xg_s9, line_dash="dash", line_color="#94a3b8")
-            layout_s9b = _base_layout(height=420)
-            layout_s9b["xaxis"]  = dict(title="Total xG accumulated (season)", gridcolor="#e5e7eb")
-            layout_s9b["yaxis"]  = dict(title="", gridcolor="#e5e7eb")
-            layout_s9b["title"]  = dict(text="Top xG accumulators — do they convert above their xG?",
-                                         font=dict(size=13))
-            layout_s9b["margin"] = dict(t=40, b=40, l=140, r=100)
-            fig_s9b.update_layout(**layout_s9b)
-            st.plotly_chart(fig_s9b, use_container_width=True)
+
+        x_s9 = df_s9["top_scorer_pct"].values
+        y_s9 = df_s9["win_rate_pct"].values
+        z_s9 = np.polyfit(x_s9, y_s9, 1)
+        p_s9 = np.poly1d(z_s9)
+        x_line_s9 = np.linspace(x_s9.min(), x_s9.max(), 100)
+        ss_res_s9 = np.sum((y_s9 - p_s9(x_s9)) ** 2)
+        ss_tot_s9 = np.sum((y_s9 - y_s9.mean()) ** 2)
+        r2_s9 = 1 - ss_res_s9 / ss_tot_s9 if ss_tot_s9 != 0 else 0
+
+        fig_s9.add_trace(go.Scatter(
+            x=x_line_s9, y=p_s9(x_line_s9), mode='lines',
+            line=dict(color='#94a3b8', dash='dash', width=1.5),
+            name='Trend', showlegend=False,
+        ))
+        fig_s9.add_annotation(
+            x=0.98, y=0.98, xref='paper', yref='paper',
+            text=f"R² = {r2_s9:.2f}", showarrow=False,
+            font=dict(size=11, color='#64748b'),
+            bgcolor='#f8fafc', bordercolor='#e2e8f0',
+            borderwidth=1, borderpad=4,
+        )
+        fig_s9.add_vline(x=30, line_dash="dash", line_color="#94a3b8",
+                         annotation_text="30% threshold", annotation_position="top right")
+
+        layout_s9 = _base_layout(height=500)
+        layout_s9["xaxis"]        = dict(title="Top scorer's share of team goals (%)", gridcolor="#e5e7eb")
+        layout_s9["yaxis"]        = dict(title="Season win rate (%)", gridcolor="#e5e7eb")
+        layout_s9["legend_title"] = "League"
+        layout_s9["title"]        = dict(text="Goal concentration vs win rate", font=dict(size=13))
+        layout_s9["margin"]       = dict(t=40, b=40, l=60, r=20)
+        fig_s9.update_layout(**layout_s9)
+        st.plotly_chart(fig_s9, use_container_width=True)
 
     st.info(
-        "There is no meaningful relationship between having a dominant scorer and winning the "
-        "league. The right panel shows the highest xG accumulators — many of them convert at "
-        "or below their xG (red/yellow bars). What puts them on winning teams is not their "
-        "conversion rate. It is the **volume of chances** they generate and attract."
+        "The scatter shows no meaningful relationship — confirmed by a low R². "
+        "Teams with a dominant scorer and teams with distributed goals win at "
+        "the same rate. What differs between winning and losing teams is total "
+        "xG volume, not who scores it."
     )
 
     st.markdown("---")
 
-    # ── Slide 10 — The Conversion Trap in Practice ────────────────────────────
-    st.markdown("### Slide 10 — The Conversion Trap in Practice")
+    # ── Slide 10 — When Even Great Teams Create Fewer Chances ────────────────
+    st.markdown("### Slide 10 — When Even Great Teams Create Fewer Chances")
+    st.markdown(
+        "Our five reference clubs dominate through xG volume. But even they "
+        "have seasons where chance creation drops — and the results follow "
+        "immediately. These are their lowest total-xG seasons in the dataset."
+    )
 
-    ref_patterns = ['Barcel', 'Bayern', 'City', 'Liverpool', 'Paris']
-    if not known_teams.empty:
-        matched = known_teams[
-            known_teams['team'].str.contains(
-                '|'.join(ref_patterns), case=False, na=False
-            )
-        ]['team'].tolist()
-    else:
-        matched = []
+    ref_teams     = ['Barcelona', 'Manchester City', 'Paris Saint Germain',
+                     'Bayern Munich', 'Liverpool']
+    ref_teams_sql = ", ".join(f"'{t}'" for t in ref_teams)
 
-    df_s10 = pd.DataFrame()
-    if matched:
-        matched_sql_list = ', '.join(f"'{t}'" for t in matched)
-        sql_s10 = f"""
+    sql_s10 = f"""
 SELECT team, league, season,
-       ROUND(total_xg_for, 2)                    AS total_xg_for,
-       ROUND(total_xg_for - total_xg_against, 2) AS xg_differential,
+       ROUND(total_xg_for, 2)                          AS total_xg_for,
+       ROUND(total_xg_for - total_xg_against, 2)       AS xg_differential,
        wins, losses,
-       ROUND(win_rate, 3)                         AS win_rate,
+       ROUND(win_rate, 3)                               AS win_rate,
        goals_for, goals_against
 FROM {_DATASET}.mart_league_standings
-WHERE team IN ({matched_sql_list})
+WHERE team IN ({ref_teams_sql})
 ORDER BY total_xg_for ASC
 LIMIT 6
 """
-        try:
-            df_s10 = run_query(sql_s10)
-        except Exception as e:
-            st.error(f"Query failed: {e}")
-            st.code(sql_s10, language="sql")
-            df_s10 = pd.DataFrame()
+    try:
+        df_s10 = run_query(sql_s10)
+    except Exception as e:
+        st.error(f"Query failed: {e}")
+        st.code(sql_s10, language="sql")
+        df_s10 = pd.DataFrame()
 
     use_fallback = df_s10.empty or len(df_s10) < 2
     if use_fallback:
@@ -946,10 +850,9 @@ LIMIT 6
             )
 
     st.info(
-        "When these teams lose seasons or stretches of matches, the xG tells the story before "
-        "the table does. The formula breaks in one specific way: **chance creation collapses**. "
-        "Not because the striker missed — because the system stopped generating chances. "
-        "Low xG → low wins. Every time."
+        "Even Barcelona, City, and Bayern lose when they stop creating chances. "
+        "The formula does not fail because of poor finishing — it fails when "
+        "the system stops generating volume. Low xG always precedes low results."
     )
 
     st.markdown("---")
@@ -957,19 +860,15 @@ LIMIT 6
     # ── Slide 11 — The Winning Formula ───────────────────────────────────────
     st.markdown("### Slide 11 — The Winning Formula")
 
-    metrics_s11   = ["Finishing Efficiency\n(Goals/xG ratio)", "xG Creation",
-                     "Pressing Intensity\n(PPDA)"]
-    pct_diff_s11  = [120, 90, 13]
+    metrics_s11    = ["Finishing Efficiency\n(Goals/xG ratio)", "xG Creation",
+                      "Pressing Intensity\n(PPDA)"]
+    pct_diff_s11   = [120, 90, 13]
     bar_colors_s11 = ["#2ecc71", "#3498db", "#bdc3c7"]
 
     fig_s11 = go.Figure()
     fig_s11.add_trace(go.Bar(
-        y=metrics_s11,
-        x=pct_diff_s11,
-        orientation='h',
-        marker_color=bar_colors_s11,
-        text=[f"{v}% difference" for v in pct_diff_s11],
-        textposition='outside',
+        y=metrics_s11, x=pct_diff_s11, orientation='h', marker_color=bar_colors_s11,
+        text=[f"{v}% difference" for v in pct_diff_s11], textposition='outside',
     ))
     fig_s11.add_vline(x=13, line_dash="dash", line_color="#bdc3c7",
                       annotation_text="Pressing", annotation_position="top right",
@@ -978,24 +877,22 @@ LIMIT 6
                       annotation_text="xG", annotation_position="top right",
                       annotation_font=dict(size=10, color="#3498db"))
     layout_s11 = _base_layout(height=350)
-    layout_s11["xaxis"]  = dict(title="Win vs Loss % difference", gridcolor="#e5e7eb",
-                                 range=[0, 150])
+    layout_s11["xaxis"]  = dict(title="Win vs Loss % difference", gridcolor="#e5e7eb", range=[0, 150])
     layout_s11["yaxis"]  = dict(title="", gridcolor="#e5e7eb")
-    layout_s11["title"]  = dict(text="What actually separates winners from losers",
-                                 font=dict(size=14))
+    layout_s11["title"]  = dict(text="What actually separates winners from losers", font=dict(size=14))
     layout_s11["margin"] = dict(t=40, b=40, l=190, r=90)
     fig_s11.update_layout(**layout_s11)
     st.plotly_chart(fig_s11, use_container_width=True)
 
     pillar_colors = [
-        LEAGUE_COLORS['La Liga'],
-        LEAGUE_COLORS['Premier League'],
-        LEAGUE_COLORS['Serie A'],
+        LEAGUE_COLORS['la_liga'],
+        LEAGUE_COLORS['premier_league'],
+        LEAGUE_COLORS['serie_a'],
     ]
     pillars = [
-        {"header": "Create volume",      "body": "1.86 xG per match in wins vs 0.98 in losses",         "color": pillar_colors[0]},
-        {"header": "Convert clinically", "body": "1.30 goals/xG in wins vs 0.59 in losses",             "color": pillar_colors[1]},
-        {"header": "Suppress chances",   "body": "xG differential is the most complete single metric",  "color": pillar_colors[2]},
+        {"header": "Create volume",      "body": "1.86 xG per match in wins vs 0.98 in losses",        "color": pillar_colors[0]},
+        {"header": "Convert clinically", "body": "1.30 goals/xG in wins vs 0.59 in losses",            "color": pillar_colors[1]},
+        {"header": "Suppress chances",   "body": "xG differential is the most complete single metric", "color": pillar_colors[2]},
     ]
     col1, col2, col3 = st.columns(3)
     for col, pillar in zip([col1, col2, col3], pillars):
