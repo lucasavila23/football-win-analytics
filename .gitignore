@@ -29,3 +29,7 @@ docs/pipeline_timings/
 # macOS
 .DS_Store
 
+
+# Local tooling
+.claude/
+CLAUDE.md
